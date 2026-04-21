@@ -26,7 +26,8 @@ source:
 | 5 | V2-005 | 拖拽进度条调整时间 | completed | 1 |
 | 6 | V2-006 | Dashboard统计概览与当前进行中任务高亮 | completed | 0 |
 | 7 | V2-007 | 历史记录视图 | completed | 1 |
-| 8 | V2-008 | 休息时段设置与扣除逻辑迁移 | in_progress | 0 |
+| 8 | V2-008 | 休息时段设置与扣除逻辑迁移 | completed | 1 |
+| 9 | V2-009 | 数据导出导入适配V2格式 | in_progress | 0 |
 | 8 | V2-008 | 休息时段设置与扣除逻辑迁移 | pending | 0 |
 | 9 | V2-009 | 数据导出导入适配V2格式 | pending | 0 |
 | 10 | V2-010 | 侧边栏导航与视图切换 | pending | 0 |

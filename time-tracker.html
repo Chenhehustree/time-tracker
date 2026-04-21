@@ -990,6 +990,17 @@
             </div>
         </div>
 
+        <!-- 数据导出导入按钮 -->
+        <div id="data-actions" style="margin-bottom: 24px; display: flex; gap: 12px;">
+            <button id="export-btn" class="task-btn" style="background: var(--primary); color: #ffffff;">
+                📥 导出数据
+            </button>
+            <button id="import-btn" class="task-btn" style="background: var(--success); color: #ffffff;">
+                📤 导入数据
+            </button>
+            <input type="file" id="import-file" accept=".json" style="display: none;">
+        </div>
+
         <!-- 任务卡片列表区域 -->
         <div class="tasks-section" id="dashboard-tasks-section">
             <div class="tasks-section-header">
@@ -2752,8 +2763,185 @@
                 });
             }
 
+            // 导出按钮事件
+            const exportBtn = document.getElementById('export-btn');
+            if (exportBtn) {
+                exportBtn.addEventListener('click', exportData);
+            }
+
+            // 导入按钮事件
+            const importBtn = document.getElementById('import-btn');
+            const importFile = document.getElementById('import-file');
+            if (importBtn && importFile) {
+                importBtn.addEventListener('click', function() {
+                    importFile.click();
+                });
+                importFile.addEventListener('change', function() {
+                    if (this.files && this.files.length > 0) {
+                        importData(this.files[0]);
+                    }
+                });
+            }
+
             initDashboard();
         });
+
+        // ==========================================
+        // V2-009: 数据导出导入
+        // ==========================================
+
+        function exportData() {
+            const tasks = {};
+            const config = localStorage.getItem('time-tracker-config');
+
+            // Collect all time-tracker-tasks-* entries
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (key && key.startsWith('time-tracker-tasks-')) {
+                    const dateStr = key.replace('time-tracker-tasks-', '');
+                    const data = localStorage.getItem(key);
+                    if (data) {
+                        tasks[dateStr] = JSON.parse(data);
+                    }
+                }
+            }
+
+            const exportObj = {
+                version: '2.0',
+                exportDate: new Date().toISOString(),
+                tasks: tasks,
+                config: config ? JSON.parse(config) : { breakPeriods: [] }
+            };
+
+            const jsonStr = JSON.stringify(exportObj, null, 2);
+            const blob = new Blob([jsonStr], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+
+            const today = new Date();
+            const year = today.getFullYear();
+            const month = String(today.getMonth() + 1).padStart(2, '0');
+            const day = String(today.getDate()).padStart(2, '0');
+            const filename = `time-tracker-v2-backup-${year}-${month}-${day}.json`;
+
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        function convertV1ToV2(v1Data) {
+            const tasks = {};
+
+            // Convert records to tasks format
+            if (v1Data.records) {
+                for (const [dateStr, records] of Object.entries(v1Data.records)) {
+                    if (!Array.isArray(records)) continue;
+
+                    // Group records by taskName
+                    const taskGroups = {};
+                    records.forEach(record => {
+                        const name = record.taskName || '未命名任务';
+                        if (!taskGroups[name]) {
+                            taskGroups[name] = [];
+                        }
+                        taskGroups[name].push(record);
+                    });
+
+                    // Create tasks for each group
+                    tasks[dateStr] = [];
+                    for (const [taskName, groupRecords] of Object.entries(taskGroups)) {
+                        const task = createTask(taskName);
+                        task.status = 'completed';
+
+                        groupRecords.forEach(record => {
+                            const segment = {
+                                id: record.id || generateId(),
+                                startTime: record.startTime,
+                                endTime: record.endTime,
+                                rawDuration: record.rawDuration || 0,
+                                effectiveDuration: record.effectiveDuration || 0,
+                                breakOverlapMinutes: 0
+                            };
+                            task.segments.push(segment);
+                        });
+
+                        updateTaskTotals(task);
+                        tasks[dateStr].push(task);
+                    }
+                }
+            }
+
+            return {
+                version: '2.0',
+                exportDate: v1Data.exportDate || new Date().toISOString(),
+                tasks: tasks,
+                config: v1Data.config || { breakPeriods: [] }
+            };
+        }
+
+        function importData(file) {
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = JSON.parse(e.target.result);
+
+                    // Validate format
+                    if (!data || typeof data !== 'object') {
+                        alert('文件格式不正确');
+                        return;
+                    }
+
+                    // Check version and convert if needed
+                    let importData = data;
+                    if (data.version === '1.0') {
+                        alert('检测到 V1 格式数据，将尝试转换导入');
+                        importData = convertV1ToV2(data);
+                    } else if (data.version !== '2.0') {
+                        alert('文件格式不正确');
+                        return;
+                    }
+
+                    // Validate V2 structure
+                    if (!importData.tasks || typeof importData.tasks !== 'object' || !importData.config) {
+                        alert('文件格式不正确');
+                        return;
+                    }
+
+                    // Confirm import
+                    if (!confirm('导入将覆盖现有数据，是否继续？')) {
+                        return;
+                    }
+
+                    // Clear existing data
+                    const keysToRemove = [];
+                    for (let i = 0; i < localStorage.length; i++) {
+                        const key = localStorage.key(i);
+                        if (key && (key.startsWith('time-tracker-tasks-') || key === 'time-tracker-config')) {
+                            keysToRemove.push(key);
+                        }
+                    }
+                    keysToRemove.forEach(key => localStorage.removeItem(key));
+
+                    // Write imported data
+                    for (const [dateStr, taskList] of Object.entries(importData.tasks)) {
+                        localStorage.setItem('time-tracker-tasks-' + dateStr, JSON.stringify(taskList));
+                    }
+                    localStorage.setItem('time-tracker-config', JSON.stringify(importData.config));
+
+                    // Refresh page
+                    window.location.reload();
+
+                } catch (err) {
+                    alert('文件格式不正确');
+                }
+            };
+            reader.readAsText(file);
+        }
 
         // ==========================================
         // V2-002 自测代码（浏览器控制台验证用）
