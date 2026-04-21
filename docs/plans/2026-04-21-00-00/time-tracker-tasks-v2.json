@@ -1,0 +1,221 @@
+{
+  "topic": "工作计时器V2 - Modern Dashboard重构",
+  "created": "2026-04-21",
+  "tasks": [
+    {
+      "id": "V2-001",
+      "title": "Modern Dashboard UI骨架（侧边栏 + 统计概览 + 任务卡片布局）",
+      "priority": "P0",
+      "depends_on": [],
+      "user_story": "UI重构",
+      "description": "重写 time-tracker.html 的 HTML 结构和 CSS 样式，实现 Modern Dashboard 风格。包括：深色侧边栏导航（Dashboard/今日任务/历史记录/设置）、顶部标题栏、统计概览卡片行（4列网格：任务数/总工时/人天/休息段数）、任务卡片容器区域、当前进行中的任务高亮区域。使用 CSS 自定义属性定义 Modern Dashboard 配色方案。",
+      "files": {
+        "create": [],
+        "modify": ["time-tracker.html"],
+        "test": []
+      },
+      "acceptance_criteria": [
+        "AC1: 页面显示深色侧边栏（宽度240px），包含导航项",
+        "AC2: 顶部显示标题栏（应用名 + 今日日期）",
+        "AC3: 统计概览区域显示4列卡片布局",
+        "AC4: 任务卡片区域为空时显示'暂无任务'提示",
+        "AC5: 配色符合 Modern Dashboard 风格（深蓝/靛蓝主色）"
+      ],
+      "tech_notes": "使用 CSS Grid 和 Flexbox 布局。侧边栏使用 position: fixed。统计卡片使用 CSS Grid（grid-template-columns: repeat(4, 1fr)）。所有颜色定义为 CSS 自定义属性。"
+    },
+    {
+      "id": "V2-002",
+      "title": "任务为中心的数据模型重构（Task + TimeSegment）",
+      "priority": "P0",
+      "depends_on": ["V2-001"],
+      "user_story": "数据模型重构",
+      "description": "重构 JavaScript 数据模型，从 V1 的以时间段为中心改为以任务为中心。实现 Task 类/工厂函数：包含 id/taskName/status/createdAt/segments/totalRawDuration/totalEffectiveDuration。实现 TimeSegment 类：包含 id/startTime/endTime/rawDuration/effectiveDuration。更新 localStorage 存储格式（time-tracker-tasks-YYYY-MM-DD）。实现任务状态机（idle → running → paused → completed）。",
+      "files": {
+        "create": [],
+        "modify": ["time-tracker.html"],
+        "test": []
+      },
+      "acceptance_criteria": [
+        "AC1: 可以创建任务并保存到 localStorage",
+        "AC2: 任务对象包含 segments 数组",
+        "AC3: 开始计时后任务状态变为 running",
+        "AC4: 暂停后任务状态变为 paused，并生成一个时间段",
+        "AC5: 结束后任务状态变为 completed",
+        "AC6: localStorage 数据格式正确"
+      ],
+      "tech_notes": "Task 状态机：idle（未开始）→ running（开始/继续）→ paused（暂停）→ running（继续）→ completed（结束）。completed 为终态，不可再操作。"
+    },
+    {
+      "id": "V2-003",
+      "title": "任务卡片渲染与交互（创建/开始/暂停/结束）",
+      "priority": "P0",
+      "depends_on": ["V2-002"],
+      "user_story": "任务生命周期",
+      "description": "实现任务卡片的渲染和交互逻辑。新建任务按钮弹出输入框创建任务。任务卡片显示：任务名、状态标签、当前段计时器（如果 running）、累计时长统计、操作按钮（开始/暂停/继续/结束，根据状态显示不同按钮）。任务卡片根据状态显示不同边框颜色（running=绿色发光/paused=橙色/completed=灰色/idle=默认）。",
+      "files": {
+        "create": [],
+        "modify": ["time-tracker.html"],
+        "test": []
+      },
+      "acceptance_criteria": [
+        "AC1: 点击'新建任务'输入名称后创建任务卡片",
+        "AC2: running 状态卡片显示绿色边框和计时器",
+        "AC3: paused 状态卡片显示橙色边框和'继续'按钮",
+        "AC4: completed 状态卡片显示灰色边框，无操作按钮",
+        "AC5: 操作按钮根据状态正确显示（running 显示暂停+结束/paused 显示继续+结束）",
+        "AC6: 刷新页面后恢复 running 任务计时"
+      ],
+      "tech_notes": "使用 setInterval 每秒更新 running 任务的计时显示。beforeunload 保存 running 状态到 localStorage。"
+    },
+    {
+      "id": "V2-004",
+      "title": "时间段展开/收起与年月时间显示",
+      "priority": "P0",
+      "depends_on": ["V2-003"],
+      "user_story": "时间段列表",
+      "description": "实现任务卡片的时间段展开/收起功能。默认收起，显示'▼ 时间段列表（共N段，累计X小时X分）'。点击展开后显示完整的时间段列表，每段显示：年月日（2026-04-21）、起止时间（09:00 - 11:30）、原始时长、有效时长。每段右上角有删除按钮。底部有'+ 添加时间段'按钮。展开/收起有平滑动画过渡。",
+      "files": {
+        "create": [],
+        "modify": ["time-tracker.html"],
+        "test": []
+      },
+      "acceptance_criteria": [
+        "AC1: 默认收起，显示段数统计",
+        "AC2: 点击展开显示完整时间段列表",
+        "AC3: 每段显示年月日和起止时间",
+        "AC4: 每段显示原始时长和有效时长",
+        "AC5: 可以删除单段",
+        "AC6: 可以手动添加新段"
+      ],
+      "tech_notes": "使用 CSS transition 实现展开/收起动画（max-height + opacity）。时间段按开始时间排序。"
+    },
+    {
+      "id": "V2-005",
+      "title": "拖拽进度条调整时间",
+      "priority": "P0",
+      "depends_on": ["V2-004"],
+      "user_story": "时间段拖拽调整",
+      "description": "实现可拖拽的24小时制时间轴进度条。每段时间段展开后显示进度条：总长度表示24小时，蓝色填充部分表示该时间段。进度条左右两端有可拖拽的圆形手柄。拖拽时实时显示 tooltip 提示当前时间（最小粒度5分钟）。防止与同任务其他时间段重叠（冲突时变红）。松开手柄后自动保存并重新计算时长。休息时段重叠区域用半透明颜色叠加显示。",
+      "files": {
+        "create": [],
+        "modify": ["time-tracker.html"],
+        "test": []
+      },
+      "acceptance_criteria": [
+        "AC1: 展开后每段显示24小时进度条",
+        "AC2: 进度条两端有可拖拽手柄",
+        "AC3: 拖拽时显示 tooltip 提示时间",
+        "AC4: 最小调整粒度5分钟",
+        "AC5: 与同任务其他段重叠时变红提示",
+        "AC6: 松开后自动保存并更新统计",
+        "AC7: 休息重叠区域用颜色叠加显示"
+      ],
+      "tech_notes": "使用 mousedown/mousemove/mouseup 事件实现拖拽。进度条使用 div 嵌套实现（外层容器24小时，内层填充表示时间段，左右两个绝对定位的手柄）。时间转换：像素位置 ↔ 分钟数。冲突检测：比较时间段的起止时间是否有交集。"
+    },
+    {
+      "id": "V2-006",
+      "title": "Dashboard 统计概览与当前进行中任务高亮",
+      "priority": "P0",
+      "depends_on": ["V2-003"],
+      "user_story": "统计概览",
+      "description": "实现 Dashboard 顶部统计概览和当前进行中任务高亮区域。统计卡片：今日任务数量、总原始工时、总有效工时（扣除休息）、人天换算值。当前进行中任务区域：固定在统计卡片下方，显示进行中的任务名、已运行时间、暂停/结束按钮。如果没有进行中的任务，该区域隐藏。统计数据实时更新。",
+      "files": {
+        "create": [],
+        "modify": ["time-tracker.html"],
+        "test": []
+      },
+      "acceptance_criteria": [
+        "AC1: 统计卡片显示今日任务数/总原始工时/总有效工时/人天",
+        "AC2: 有 running 任务时显示高亮区域",
+        "AC3: 高亮区域显示任务名和已运行时间",
+        "AC4: 高亮区域有暂停和结束按钮",
+        "AC5: 无 running 任务时高亮区域隐藏",
+        "AC6: 统计数据实时更新"
+      ],
+      "tech_notes": "统计从所有任务的 segments 计算得出。人天 = 总有效分钟数 / 480。高亮区域使用 position: sticky 固定在顶部。"
+    },
+    {
+      "id": "V2-007",
+      "title": "历史记录视图（按日期查看任务）",
+      "priority": "P1",
+      "depends_on": ["V2-006"],
+      "user_story": "历史记录",
+      "description": "实现历史记录视图。侧边栏切换到"历史记录"后，显示日期选择器和该日期的任务列表。任务列表样式与今日任务相同（卡片式），但所有任务为只读状态（无操作按钮）。显示该日期的统计概览。",
+      "files": {
+        "create": [],
+        "modify": ["time-tracker.html"],
+        "test": []
+      },
+      "acceptance_criteria": [
+        "AC1: 点击侧边栏"历史记录"切换到历史视图",
+        "AC2: 显示日期选择器",
+        "AC3: 选择日期后显示该日期的任务卡片",
+        "AC4: 任务卡片为只读（无操作按钮）",
+        "AC5: 显示该日期的统计概览"
+      ],
+      "tech_notes": "历史视图与今日视图共用任务卡片渲染逻辑，通过参数控制是否只读。"
+    },
+    {
+      "id": "V2-008",
+      "title": "休息时段设置与扣除逻辑迁移",
+      "priority": "P0",
+      "depends_on": ["V2-002"],
+      "user_story": "休息扣除",
+      "description": "将 V1 的休息时段设置和扣除逻辑迁移到 V2 模型中。设置页面通过侧边栏进入。休息配置格式不变。扣除逻辑更新为针对每个 TimeSegment 计算重叠。在 Dashboard 统计和任务卡片统计中正确显示扣除后的有效时长。",
+      "files": {
+        "create": [],
+        "modify": ["time-tracker.html"],
+        "test": []
+      },
+      "acceptance_criteria": [
+        "AC1: 侧边栏有"设置"入口",
+        "AC2: 设置页面可配置休息时段",
+        "AC3: 每个时间段的 effectiveDuration 正确计算",
+        "AC4: 任务总有效时长 = 各段有效时长之和",
+        "AC5: Dashboard 统计基于有效工时"
+      ],
+      "tech_notes": "calculateOverlap 逻辑复用 V1 版本，但作用于 TimeSegment 级别。"
+    },
+    {
+      "id": "V2-009",
+      "title": "数据导出导入适配V2格式",
+      "priority": "P1",
+      "depends_on": ["V2-002"],
+      "user_story": "数据备份",
+      "description": "将 V1 的导出/导入功能适配 V2 数据格式。导出 JSON 包含：version、exportDate、tasks（按日期组织的任务数组）、config。导入时解析 V2 格式并写入 localStorage。",
+      "files": {
+        "create": [],
+        "modify": ["time-tracker.html"],
+        "test": []
+      },
+      "acceptance_criteria": [
+        "AC1: 导出 JSON 包含 V2 格式的 tasks 和 config",
+        "AC2: 导入 V2 格式数据正确恢复",
+        "AC3: 导入前确认是否覆盖",
+        "AC4: 格式错误时提示"
+      ],
+      "tech_notes": "导出数据结构：{ version: '2.0', exportDate, tasks: { 'YYYY-MM-DD': [Task] }, config }。"
+    },
+    {
+      "id": "V2-010",
+      "title": "侧边栏导航与视图切换",
+      "priority": "P1",
+      "depends_on": ["V2-001"],
+      "user_story": "导航",
+      "description": "实现侧边栏导航的视图切换功能。Dashboard（今日任务+统计）、历史记录、设置三个视图。点击导航项切换主内容区显示。当前激活的导航项高亮显示。",
+      "files": {
+        "create": [],
+        "modify": ["time-tracker.html"],
+        "test": []
+      },
+      "acceptance_criteria": [
+        "AC1: 点击"Dashboard"显示今日任务和统计",
+        "AC2: 点击"历史记录"显示历史视图",
+        "AC3: 点击"设置"显示设置页面",
+        "AC4: 当前导航项高亮",
+        "AC5: 切换视图时保留状态"
+      ],
+      "tech_notes": "使用简单的视图切换（显示/隐藏对应容器）。"
+    }
+  ]
+}

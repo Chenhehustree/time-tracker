@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "Work time tracker",
   "scripts": {
-    "test": "node test/timer.test.js && node test/storage.test.js"
+    "test": "node test/v2-ui-skeleton.test.js && node test/timer.test.js && node test/storage.test.js"
   },
   "devDependencies": {
     "jsdom": "^29.0.2"
