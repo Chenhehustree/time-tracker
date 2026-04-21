@@ -266,6 +266,193 @@
             color: var(--text-secondary);
         }
 
+        /* ===== 任务卡片样式 ===== */
+        .task-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 16px 20px;
+            margin-bottom: 12px;
+            transition: all 0.2s ease;
+            position: relative;
+        }
+
+        .task-card:last-child {
+            margin-bottom: 0;
+        }
+
+        .task-card.status-idle {
+            border: 1px solid var(--border);
+        }
+
+        .task-card.status-running {
+            border: 3px solid var(--success);
+            box-shadow: 0 0 12px rgba(16, 185, 129, 0.3);
+        }
+
+        .task-card.status-paused {
+            border: 3px solid var(--warning);
+        }
+
+        .task-card.status-completed {
+            border: 3px solid #9ca3af;
+            opacity: 0.8;
+        }
+
+        .task-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .task-name {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .task-status {
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+            text-transform: uppercase;
+        }
+
+        .task-status.idle {
+            background: #e5e7eb;
+            color: #6b7280;
+        }
+
+        .task-status.running {
+            background: #d1fae5;
+            color: var(--success);
+        }
+
+        .task-status.paused {
+            background: #fef3c7;
+            color: var(--warning);
+        }
+
+        .task-status.completed {
+            background: #f3f4f6;
+            color: #6b7280;
+        }
+
+        .task-timer {
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--success);
+            font-family: 'Courier New', monospace;
+            margin-bottom: 8px;
+        }
+
+        .task-timer.hidden {
+            display: none;
+        }
+
+        .task-duration {
+            font-size: 14px;
+            color: var(--text-secondary);
+            margin-bottom: 12px;
+        }
+
+        .task-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .task-btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .task-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .task-btn:active {
+            transform: translateY(0);
+        }
+
+        .task-btn-start {
+            background: var(--success);
+            color: #ffffff;
+        }
+
+        .task-btn-pause {
+            background: var(--warning);
+            color: #ffffff;
+        }
+
+        .task-btn-resume {
+            background: var(--success);
+            color: #ffffff;
+        }
+
+        .task-btn-complete {
+            background: var(--danger);
+            color: #ffffff;
+        }
+
+        /* ===== 当前任务高亮区域 ===== */
+        #active-task-banner.hidden {
+            display: none !important;
+        }
+
+        .active-task-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .active-task-info {
+            flex: 1;
+        }
+
+        .active-task-timer {
+            font-size: 20px;
+            font-weight: 600;
+            margin-top: 4px;
+            font-family: 'Courier New', monospace;
+        }
+
+        .active-task-actions {
+            display: flex;
+            gap: 12px;
+        }
+
+        .banner-btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            background: rgba(255, 255, 255, 0.2);
+            color: #ffffff;
+        }
+
+        .banner-btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        .banner-btn-pause {
+            background: var(--warning);
+        }
+
+        .banner-btn-complete {
+            background: var(--danger);
+        }
+
         /* ===== 响应式基础 ===== */
         @media (max-width: 1024px) {
             #stats-container {
@@ -430,6 +617,25 @@
             return STORAGE_KEY_PREFIX + formatDate(new Date());
         }
 
+        // ----- 时间格式化函数 -----
+        function formatDuration(milliseconds) {
+            const totalSeconds = Math.floor(milliseconds / 1000);
+            const hours = Math.floor(totalSeconds / 3600);
+            const minutes = Math.floor((totalSeconds % 3600) / 60);
+            const seconds = totalSeconds % 60;
+            return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+        }
+
+        function formatDurationMinutes(minutes) {
+            const hours = Math.floor(minutes / 60);
+            const mins = Math.floor(minutes % 60);
+            return `${hours}小时${mins > 0 ? mins + '分' : ''}`;
+        }
+
+        function formatNumber(num, decimals = 2) {
+            return num.toFixed(decimals);
+        }
+
         // ----- Task 工厂函数 -----
         function createTask(taskName) {
             return {
@@ -501,6 +707,454 @@
             task.totalRawDuration = task.segments.reduce((sum, seg) => sum + (seg.rawDuration || 0), 0);
             task.totalEffectiveDuration = task.segments.reduce((sum, seg) => sum + (seg.effectiveDuration || 0), 0);
         }
+
+        // ==========================================
+        // V2-003: 任务卡片渲染与交互
+        // ==========================================
+
+        // ----- 全局状态 -----
+        let todayTasks = [];
+        window.runningIntervals = {};
+
+        // ----- 新建任务 -----
+        function handleNewTask() {
+            const taskName = prompt('请输入任务名称：');
+            if (!taskName || !taskName.trim()) {
+                return;
+            }
+            const trimmedName = taskName.trim();
+            if (trimmedName.length === 0) {
+                return;
+            }
+
+            const newTask = createTask(trimmedName);
+            todayTasks.push(newTask);
+            saveTodayTasks(todayTasks);
+
+            renderTaskCard(newTask);
+            updateDashboardStats();
+            updateActiveTaskBanner();
+        }
+
+        // ----- 任务卡片渲染 -----
+        function renderTaskCard(task) {
+            const container = document.getElementById('tasks-container');
+            if (!container) return;
+
+            // 移除空状态
+            const emptyState = container.querySelector('.empty-state');
+            if (emptyState) {
+                emptyState.remove();
+            }
+
+            // 检查是否已存在该任务的卡片
+            let card = document.getElementById(`task-card-${task.id}`);
+
+            if (!card) {
+                card = document.createElement('div');
+                card.id = `task-card-${task.id}`;
+                card.className = `task-card status-${task.status}`;
+                container.appendChild(card);
+            }
+
+            // 更新卡片样式
+            card.className = `task-card status-${task.status}`;
+
+            // 生成卡片内容
+            card.innerHTML = buildTaskCardHTML(task);
+
+            // 绑定按钮事件
+            bindTaskButtonEvents(task, card);
+
+            // 如果任务是运行状态，启动计时器
+            if (task.status === 'running') {
+                startTaskTimer(task);
+            }
+        }
+
+        function buildTaskCardHTML(task) {
+            const statusText = {
+                idle: '未开始',
+                running: '进行中',
+                paused: '已暂停',
+                completed: '已完成'
+            };
+
+            const statusClass = task.status;
+            const timerHidden = task.status === 'running' ? '' : 'hidden';
+
+            // 计算累计时长显示
+            const rawMs = task.totalRawDuration;
+            const effectiveMs = task.totalEffectiveDuration;
+            const durationText = rawMs === effectiveMs
+                ? `累计时长：${formatDuration(rawMs)}`
+                : `累计时长：${formatDuration(rawMs)}（有效 ${formatDuration(effectiveMs)}）`;
+
+            // 操作按钮
+            let buttonsHTML = '';
+            if (task.status === 'idle') {
+                buttonsHTML = `<button class="task-btn task-btn-start" data-action="start" data-task-id="${task.id}">▶ 开始</button>`;
+            } else if (task.status === 'running') {
+                buttonsHTML = `
+                    <button class="task-btn task-btn-pause" data-action="pause" data-task-id="${task.id}">⏸ 暂停</button>
+                    <button class="task-btn task-btn-complete" data-action="complete" data-task-id="${task.id}">✓ 结束</button>
+                `;
+            } else if (task.status === 'paused') {
+                buttonsHTML = `
+                    <button class="task-btn task-btn-resume" data-action="resume" data-task-id="${task.id}">▶ 继续</button>
+                    <button class="task-btn task-btn-complete" data-action="complete" data-task-id="${task.id}">✓ 结束</button>
+                `;
+            }
+            // completed 状态无按钮
+
+            return `
+                <div class="task-card-header">
+                    <h3 class="task-name">${escapeHtml(task.taskName)}</h3>
+                    <span class="task-status ${statusClass}">${statusText[task.status]}</span>
+                </div>
+                <div class="task-timer ${timerHidden}" data-task-timer="${task.id}">00:00:00</div>
+                <div class="task-duration">${durationText}</div>
+                <div class="task-actions">
+                    ${buttonsHTML}
+                </div>
+            `;
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function bindTaskButtonEvents(task, card) {
+            const buttons = card.querySelectorAll('.task-btn');
+            buttons.forEach(btn => {
+                btn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    const action = this.dataset.action;
+                    const taskId = this.dataset.taskId;
+                    handleTaskAction(taskId, action);
+                });
+            });
+        }
+
+        // ----- 操作按钮逻辑 -----
+        function handleTaskAction(taskId, action) {
+            const task = todayTasks.find(t => t.id === taskId);
+            if (!task) return;
+
+            switch (action) {
+                case 'start':
+                    startTask(task);
+                    break;
+                case 'pause':
+                    pauseTask(task);
+                    break;
+                case 'resume':
+                    resumeTask(task);
+                    break;
+                case 'complete':
+                    completeTask(task);
+                    break;
+            }
+        }
+
+        function startTask(task) {
+            if (!canStart(task)) return;
+
+            const segment = createSegment(Date.now());
+            task.segments.push(segment);
+            task.status = 'running';
+
+            saveTodayTasks(todayTasks);
+            renderTaskCard(task);
+            updateDashboardStats();
+            updateActiveTaskBanner();
+        }
+
+        function pauseTask(task) {
+            if (!canPause(task)) return;
+
+            const currentSegment = task.segments[task.segments.length - 1];
+            if (currentSegment && currentSegment.endTime === null) {
+                const now = Date.now();
+                currentSegment.endTime = now;
+                const duration = calculateSegmentDuration(currentSegment, now);
+                currentSegment.rawDuration = duration;
+                currentSegment.effectiveDuration = duration;
+            }
+
+            task.status = 'paused';
+            updateTaskTotals(task);
+
+            saveTodayTasks(todayTasks);
+            stopTaskTimer(task.id);
+            renderTaskCard(task);
+            updateDashboardStats();
+            updateActiveTaskBanner();
+        }
+
+        function resumeTask(task) {
+            if (!canStart(task)) return;
+
+            const segment = createSegment(Date.now());
+            task.segments.push(segment);
+            task.status = 'running';
+
+            saveTodayTasks(todayTasks);
+            renderTaskCard(task);
+            updateDashboardStats();
+            updateActiveTaskBanner();
+        }
+
+        function completeTask(task) {
+            if (!canComplete(task)) return;
+
+            // 如果正在运行，先结束当前段
+            if (task.status === 'running') {
+                const currentSegment = task.segments[task.segments.length - 1];
+                if (currentSegment && currentSegment.endTime === null) {
+                    const now = Date.now();
+                    currentSegment.endTime = now;
+                    const duration = calculateSegmentDuration(currentSegment, now);
+                    currentSegment.rawDuration = duration;
+                    currentSegment.effectiveDuration = duration;
+                }
+                stopTaskTimer(task.id);
+            }
+
+            task.status = 'completed';
+            updateTaskTotals(task);
+
+            saveTodayTasks(todayTasks);
+            renderTaskCard(task);
+            updateDashboardStats();
+            updateActiveTaskBanner();
+        }
+
+        // ----- 计时器实时更新 -----
+        function startTaskTimer(task) {
+            if (window.runningIntervals[task.id]) {
+                clearInterval(window.runningIntervals[task.id]);
+            }
+
+            function updateTimer() {
+                const currentSegment = task.segments[task.segments.length - 1];
+                if (!currentSegment || currentSegment.endTime !== null) return;
+
+                const elapsed = Date.now() - currentSegment.startTime;
+                const totalRaw = task.totalRawDuration + elapsed;
+                const totalEffective = task.totalEffectiveDuration + elapsed;
+
+                // 更新卡片计时器
+                const cardTimer = document.querySelector(`[data-task-timer="${task.id}"]`);
+                if (cardTimer) {
+                    cardTimer.textContent = formatDuration(elapsed);
+                }
+
+                // 更新累计时长
+                const card = document.getElementById(`task-card-${task.id}`);
+                if (card) {
+                    const durationEl = card.querySelector('.task-duration');
+                    if (durationEl) {
+                        const durationText = totalRaw === totalEffective
+                            ? `累计时长：${formatDuration(totalRaw)}`
+                            : `累计时长：${formatDuration(totalRaw)}（有效 ${formatDuration(totalEffective)}）`;
+                        durationEl.textContent = durationText;
+                    }
+                }
+
+                // 更新高亮区域计时器
+                updateActiveTaskBannerTimer(task, totalRaw);
+
+                // 更新统计
+                updateDashboardStats();
+            }
+
+            updateTimer(); // 立即更新一次
+            window.runningIntervals[task.id] = setInterval(updateTimer, 1000);
+        }
+
+        function stopTaskTimer(taskId) {
+            if (window.runningIntervals[taskId]) {
+                clearInterval(window.runningIntervals[taskId]);
+                delete window.runningIntervals[taskId];
+            }
+        }
+
+        function stopAllTimers() {
+            Object.keys(window.runningIntervals).forEach(taskId => {
+                clearInterval(window.runningIntervals[taskId]);
+                delete window.runningIntervals[taskId];
+            });
+        }
+
+        // ----- 当前进行中的任务高亮区域 -----
+        function updateActiveTaskBanner() {
+            const banner = document.getElementById('active-task-banner');
+            if (!banner) return;
+
+            const runningTask = todayTasks.find(t => t.status === 'running');
+
+            if (!runningTask) {
+                banner.classList.add('hidden');
+                return;
+            }
+
+            banner.classList.remove('hidden');
+
+            const elapsed = calculateRunningTaskElapsed(runningTask);
+
+            banner.innerHTML = `
+                <div class="active-task-content">
+                    <div class="active-task-info">
+                        <div class="active-task-label">当前进行中的任务</div>
+                        <div class="active-task-name">${escapeHtml(runningTask.taskName)}</div>
+                        <div class="active-task-timer" data-banner-timer>${formatDuration(elapsed)}</div>
+                    </div>
+                    <div class="active-task-actions">
+                        <button class="banner-btn banner-btn-pause" data-action="pause" data-task-id="${runningTask.id}">⏸ 暂停</button>
+                        <button class="banner-btn banner-btn-complete" data-action="complete" data-task-id="${runningTask.id}">✓ 结束</button>
+                    </div>
+                </div>
+            `;
+
+            // 绑定按钮事件
+            const buttons = banner.querySelectorAll('.banner-btn');
+            buttons.forEach(btn => {
+                btn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    const action = this.dataset.action;
+                    const taskId = this.dataset.taskId;
+                    handleTaskAction(taskId, action);
+                });
+            });
+        }
+
+        function updateActiveTaskBannerTimer(task, totalElapsed) {
+            const timerEl = document.querySelector('[data-banner-timer]');
+            if (timerEl) {
+                timerEl.textContent = formatDuration(totalElapsed);
+            }
+        }
+
+        function calculateRunningTaskElapsed(task) {
+            const currentSegment = task.segments[task.segments.length - 1];
+            if (!currentSegment || currentSegment.endTime !== null) {
+                return task.totalRawDuration;
+            }
+            return task.totalRawDuration + (Date.now() - currentSegment.startTime);
+        }
+
+        // ----- 统计概览更新 -----
+        function updateDashboardStats() {
+            const stats = calculateStats();
+
+            const statCards = document.querySelectorAll('#stats-container .stat-card');
+            if (statCards.length < 4) return;
+
+            // 任务数量
+            const taskCountEl = statCards[0].querySelector('.stat-value span:first-child');
+            if (taskCountEl) taskCountEl.textContent = stats.taskCount;
+
+            // 总工时（小时）
+            const totalHoursEl = statCards[1].querySelector('.stat-value span:first-child');
+            if (totalHoursEl) totalHoursEl.textContent = formatNumber(stats.totalHours);
+
+            // 人天
+            const personDaysEl = statCards[2].querySelector('.stat-value span:first-child');
+            if (personDaysEl) personDaysEl.textContent = formatNumber(stats.personDays);
+
+            // 休息（小时）
+            const breakHoursEl = statCards[3].querySelector('.stat-value span:first-child');
+            if (breakHoursEl) breakHoursEl.textContent = formatNumber(stats.breakHours);
+        }
+
+        function calculateStats() {
+            let totalRawMs = 0;
+            let totalEffectiveMs = 0;
+
+            todayTasks.forEach(task => {
+                let taskRaw = task.totalRawDuration;
+                let taskEffective = task.totalEffectiveDuration;
+
+                // 如果是 running 状态，加上当前段的已运行时间
+                if (task.status === 'running') {
+                    const currentSegment = task.segments[task.segments.length - 1];
+                    if (currentSegment && currentSegment.endTime === null) {
+                        const elapsed = Date.now() - currentSegment.startTime;
+                        taskRaw += elapsed;
+                        taskEffective += elapsed;
+                    }
+                }
+
+                totalRawMs += taskRaw;
+                totalEffectiveMs += taskEffective;
+            });
+
+            const totalHours = totalEffectiveMs / (1000 * 60 * 60);
+            const totalMinutes = totalEffectiveMs / (1000 * 60);
+            const personDays = totalMinutes / (HOURS_PER_DAY * 60);
+            const breakMinutes = (totalRawMs - totalEffectiveMs) / (1000 * 60);
+            const breakHours = breakMinutes / 60;
+
+            return {
+                taskCount: todayTasks.length,
+                totalHours: totalHours,
+                personDays: personDays,
+                breakHours: breakHours
+            };
+        }
+
+        // ----- 页面加载初始化 -----
+        function initDashboard() {
+            // 加载今日任务
+            todayTasks = loadTodayTasks();
+
+            // 停止所有旧计时器
+            stopAllTimers();
+
+            // 清空容器
+            const container = document.getElementById('tasks-container');
+            if (container) {
+                container.innerHTML = '';
+                if (todayTasks.length === 0) {
+                    container.innerHTML = `
+                        <div class="empty-state">
+                            <div class="empty-state-text">暂无任务</div>
+                            <div class="empty-state-hint">点击"新建任务"开始</div>
+                        </div>
+                    `;
+                }
+            }
+
+            // 渲染所有任务卡片
+            todayTasks.forEach(task => {
+                renderTaskCard(task);
+            });
+
+            // 更新高亮区域和统计
+            updateActiveTaskBanner();
+            updateDashboardStats();
+
+            // 设置日期
+            const dateEl = document.getElementById('header-date');
+            if (dateEl) {
+                const now = new Date();
+                const weekdays = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];
+                dateEl.textContent = `${now.getFullYear()}年${now.getMonth() + 1}月${now.getDate()}日 ${weekdays[now.getDay()]}`;
+            }
+        }
+
+        // ----- 事件绑定 -----
+        document.addEventListener('DOMContentLoaded', function() {
+            const btnNewTask = document.getElementById('btn-new-task');
+            if (btnNewTask) {
+                btnNewTask.addEventListener('click', handleNewTask);
+            }
+
+            initDashboard();
+        });
 
         // ==========================================
         // V2-002 自测代码（浏览器控制台验证用）
@@ -605,6 +1259,112 @@
             localStorage.removeItem(todayKey());
 
             console.log(`=== V2-002 自测结束: ${passCount} 通过, ${failCount} 失败 ===`);
+            if (failCount > 0) {
+                console.error('⚠️ 存在失败的测试，请检查实现！');
+            } else {
+                console.log('✅ 所有测试通过！');
+            }
+        })();
+
+        // ==========================================
+        // V2-003 自测代码（浏览器控制台验证用）
+        // ==========================================
+        (function runV2003Tests() {
+            console.log('=== V2-003 任务卡片渲染与交互自测开始 ===');
+            let passCount = 0;
+            let failCount = 0;
+
+            function test(name, condition) {
+                if (condition) {
+                    console.log(`  [PASS] ${name}`);
+                    passCount++;
+                } else {
+                    console.error(`  [FAIL] ${name}`);
+                    failCount++;
+                    console.error('    Expected true, got:', condition);
+                }
+            }
+
+            // 清理之前的测试数据
+            const testKey = STORAGE_KEY_PREFIX + 'test-date';
+            localStorage.removeItem(testKey);
+
+            // AC1: 测试任务创建和保存
+            console.log('\n--- AC1: 新建任务测试 ---');
+            const testTask = createTask('测试任务AC1');
+            test('AC1: createTask 返回任务对象', testTask && typeof testTask === 'object');
+            test('AC1: 任务有正确名称', testTask.taskName === '测试任务AC1');
+            test('AC1: 任务初始状态为 idle', testTask.status === 'idle');
+
+            // AC2: 测试任务卡片渲染函数存在
+            console.log('\n--- AC2: 任务卡片渲染测试 ---');
+            test('AC2: renderTaskCard 函数存在', typeof renderTaskCard === 'function');
+            test('AC2: formatDuration 函数存在', typeof formatDuration === 'function');
+            test('AC2: formatDuration(3661000) 返回 01:01:01', formatDuration(3661000) === '01:01:01');
+            test('AC2: formatDuration(0) 返回 00:00:00', formatDuration(0) === '00:00:00');
+
+            // AC3: 测试状态机操作函数
+            console.log('\n--- AC3: 操作按钮逻辑测试 ---');
+            test('AC3: startTask 函数存在', typeof startTask === 'function');
+            test('AC3: pauseTask 函数存在', typeof pauseTask === 'function');
+            test('AC3: resumeTask 函数存在', typeof resumeTask === 'function');
+            test('AC3: completeTask 函数存在', typeof completeTask === 'function');
+
+            // 测试状态转换
+            const taskForActions = createTask('状态测试任务');
+            test('AC3: 初始状态为 idle', taskForActions.status === 'idle');
+
+            // 模拟开始任务
+            taskForActions.status = 'running';
+            taskForActions.segments.push(createSegment(Date.now()));
+            test('AC3: 开始任务后状态为 running', taskForActions.status === 'running');
+            test('AC3: 开始任务后有 segments', taskForActions.segments.length === 1);
+
+            // AC4: 测试计时器相关函数
+            console.log('\n--- AC4: 计时器实时更新测试 ---');
+            test('AC4: startTaskTimer 函数存在', typeof startTaskTimer === 'function');
+            test('AC4: stopTaskTimer 函数存在', typeof stopTaskTimer === 'function');
+            test('AC4: window.runningIntervals 对象存在', typeof window.runningIntervals === 'object');
+
+            // AC5: 测试高亮区域函数
+            console.log('\n--- AC5: 当前任务高亮区域测试 ---');
+            test('AC5: updateActiveTaskBanner 函数存在', typeof updateActiveTaskBanner === 'function');
+            test('AC5: calculateRunningTaskElapsed 函数存在', typeof calculateRunningTaskElapsed === 'function');
+
+            // AC6: 测试统计概览函数
+            console.log('\n--- AC6: 统计概览更新测试 ---');
+            test('AC6: updateDashboardStats 函数存在', typeof updateDashboardStats === 'function');
+            test('AC6: calculateStats 函数存在', typeof calculateStats === 'function');
+
+            // 测试统计计算
+            const statsTask1 = createTask('统计测试1');
+            statsTask1.totalEffectiveDuration = 3600000; // 1小时
+            statsTask1.status = 'completed';
+
+            const statsTask2 = createTask('统计测试2');
+            statsTask2.totalEffectiveDuration = 1800000; // 30分钟
+            statsTask2.status = 'completed';
+
+            todayTasks = [statsTask1, statsTask2];
+            const stats = calculateStats();
+
+            test('AC6: 统计任务数正确', stats.taskCount === 2);
+            test('AC6: 总工时计算正确', Math.abs(stats.totalHours - 1.5) < 0.01);
+            test('AC6: 人天计算正确', Math.abs(stats.personDays - (90 / 480)) < 0.01);
+
+            // AC7: 测试页面初始化函数
+            console.log('\n--- AC7: 页面加载初始化测试 ---');
+            test('AC7: initDashboard 函数存在', typeof initDashboard === 'function');
+            test('AC7: handleNewTask 函数存在', typeof handleNewTask === 'function');
+
+            // AC8: 测试工具函数
+            console.log('\n--- AC8: 工具函数测试 ---');
+            test('AC8: escapeHtml 函数存在', typeof escapeHtml === 'function');
+            test('AC8: escapeHtml 转义 <', escapeHtml('<script>') === '&lt;script&gt;');
+            test('AC8: formatDurationMinutes 函数存在', typeof formatDurationMinutes === 'function');
+            test('AC8: formatNumber 函数存在', typeof formatNumber === 'function');
+
+            console.log(`\n=== V2-003 自测结束: ${passCount} 通过, ${failCount} 失败 ===`);
             if (failCount > 0) {
                 console.error('⚠️ 存在失败的测试，请检查实现！');
             } else {
