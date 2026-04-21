@@ -708,6 +708,100 @@
                 margin-left: 0;
             }
         }
+
+        /* ===== 时间轴进度条样式 (V2-005) ===== */
+        .timeline-bar {
+            width: 100%;
+            padding: 20px 0;
+            margin-top: 8px;
+        }
+
+        .timeline-labels {
+            display: flex;
+            justify-content: space-between;
+            font-size: 11px;
+            color: var(--text-secondary);
+            margin-bottom: 4px;
+            padding: 0 8px;
+        }
+
+        .timeline-track {
+            height: 24px;
+            background: #e5e7eb;
+            border-radius: 12px;
+            position: relative;
+            cursor: pointer;
+        }
+
+        .segment-fill {
+            height: 100%;
+            background: #3b82f6;
+            border-radius: 12px;
+            position: absolute;
+            pointer-events: none;
+        }
+
+        .handle {
+            width: 16px;
+            height: 16px;
+            background: white;
+            border: 3px solid #3b82f6;
+            border-radius: 50%;
+            position: absolute;
+            top: 4px;
+            cursor: ew-resize;
+            z-index: 10;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            transition: transform 0.1s ease, border-color 0.2s ease;
+        }
+
+        .handle:hover {
+            transform: scale(1.1);
+        }
+
+        .handle.conflict {
+            border-color: #ef4444;
+        }
+
+        .handle-start {
+            transform: translateX(-50%);
+        }
+
+        .handle-end {
+            transform: translateX(-50%);
+        }
+
+        .break-overlay {
+            height: 100%;
+            position: absolute;
+            opacity: 0.3;
+            pointer-events: none;
+            border-radius: 4px;
+        }
+
+        .timeline-tooltip {
+            position: fixed;
+            background: #1f2937;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            pointer-events: none;
+            z-index: 1000;
+            white-space: nowrap;
+            transform: translateX(-50%);
+            margin-top: -32px;
+        }
+
+        .timeline-tooltip::after {
+            content: '';
+            position: absolute;
+            top: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            border: 4px solid transparent;
+            border-top-color: #1f2937;
+        }
     </style>
 </head>
 <body>
@@ -1080,12 +1174,16 @@
                 const rawDurationStr = formatDurationMinutes(rawMinutes);
                 const effectiveDurationStr = formatDurationMinutes(effectiveMinutes);
 
+                // 构建时间轴进度条
+                const timelineHTML = buildTimelineHTML(segment, task);
+
                 html += `
                     <div class="segment-item ${isRunning ? 'running' : ''}" data-segment-id="${segment.id}">
                         <div class="segment-info">
                             <div class="segment-date">${dateStr}</div>
-                            <div class="segment-time">${startTimeStr} - ${endTimeStr}</div>
-                            <div class="segment-duration">原始${rawDurationStr} | 有效${effectiveDurationStr}</div>
+                            <div class="segment-time" data-segment-text="${segment.id}">${startTimeStr} - ${endTimeStr}</div>
+                            <div class="segment-duration" data-segment-duration="${segment.id}">原始${rawDurationStr} | 有效${effectiveDurationStr}</div>
+                            ${timelineHTML}
                         </div>
                         <button class="segment-delete-btn" data-delete-segment="${segment.id}" data-task-id="${task.id}" title="删除时间段">×</button>
                     </div>
@@ -1103,10 +1201,394 @@
             return html;
         }
 
+        // 构建时间轴进度条HTML (V2-005)
+        function buildTimelineHTML(segment, task) {
+            const startDate = new Date(segment.startTime);
+            const startMinutes = startDate.getHours() * 60 + startDate.getMinutes();
+            
+            let endMinutes;
+            if (segment.endTime === null) {
+                endMinutes = startMinutes + Math.floor((Date.now() - segment.startTime) / 60000);
+            } else {
+                const endDate = new Date(segment.endTime);
+                endMinutes = endDate.getHours() * 60 + endDate.getMinutes();
+            }
+            
+            // 处理跨天情况
+            if (endMinutes < startMinutes) {
+                endMinutes = 1440; // 24:00
+            }
+            
+            const startPercent = (startMinutes / 1440) * 100;
+            const widthPercent = ((endMinutes - startMinutes) / 1440) * 100;
+
+            // 获取休息时段叠加层
+            const breakOverlays = buildBreakOverlays(segment);
+
+            return `
+                <div class="timeline-bar" data-segment-id="${segment.id}" data-task-id="${task.id}">
+                    <div class="timeline-labels">
+                        <span>00:00</span>
+                        <span>06:00</span>
+                        <span>12:00</span>
+                        <span>18:00</span>
+                        <span>24:00</span>
+                    </div>
+                    <div class="timeline-track" data-timeline-track="${segment.id}">
+                        ${breakOverlays}
+                        <div class="segment-fill" data-segment-fill="${segment.id}" 
+                             style="left: ${startPercent}%; width: ${widthPercent}%"></div>
+                        <div class="handle handle-start" data-handle="start" data-segment-id="${segment.id}" 
+                             style="left: ${startPercent}%"></div>
+                        <div class="handle handle-end" data-handle="end" data-segment-id="${segment.id}" 
+                             style="left: ${startPercent + widthPercent}%"></div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // 构建休息时段叠加层
+        function buildBreakOverlays(segment) {
+            const breakPeriods = getBreakPeriods();
+            if (!breakPeriods || breakPeriods.length === 0) return '';
+
+            let overlays = '';
+            breakPeriods.forEach(breakPeriod => {
+                const breakStartMinutes = timeToMinutes(breakPeriod.start);
+                const breakEndMinutes = timeToMinutes(breakPeriod.end);
+                
+                if (breakStartMinutes < 0 || breakEndMinutes > 1440) return;
+                
+                const leftPercent = (breakStartMinutes / 1440) * 100;
+                const widthPercent = ((breakEndMinutes - breakStartMinutes) / 1440) * 100;
+                
+                overlays += `
+                    <div class="break-overlay" 
+                         style="left: ${leftPercent}%; width: ${widthPercent}%; background: ${breakPeriod.color || '#f59e0b'}"></div>
+                `;
+            });
+            
+            return overlays;
+        }
+
+        // 获取休息时段配置
+        function getBreakPeriods() {
+            // 默认休息时段：12:00-13:00（午休）
+            return [
+                { start: '12:00', end: '13:00', color: '#f59e0b' }
+            ];
+        }
+
+        // 时间字符串转换为分钟数
+        function timeToMinutes(timeStr) {
+            const [hours, minutes] = timeStr.split(':').map(Number);
+            return hours * 60 + minutes;
+        }
+
+        // 分钟数转换为时间字符串 (HH:MM)
+        function minutesToTime(minutes) {
+            const hours = Math.floor(minutes / 60);
+            const mins = minutes % 60;
+            return `${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}`;
+        }
+
+        // 将时间粒度化为5分钟
+        function roundToGranularity(minutes) {
+            return Math.round(minutes / 5) * 5;
+        }
+
         function formatTime(date) {
             const hours = String(date.getHours()).padStart(2, '0');
             const minutes = String(date.getMinutes()).padStart(2, '0');
             return `${hours}:${minutes}`;
+        }
+
+        // ===== 时间轴拖拽逻辑 (V2-005) =====
+        let dragState = null;
+
+        function initTimelineDrag(handle, segment, task) {
+            handle.addEventListener('mousedown', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+
+                const handleType = this.dataset.handle;
+                const segmentId = this.dataset.segmentId;
+                const timelineBar = document.querySelector(`.timeline-bar[data-segment-id="${segmentId}"]`);
+                if (!timelineBar) return;
+
+                const track = timelineBar.querySelector('.timeline-track');
+                const rect = track.getBoundingClientRect();
+
+                // 保存原始位置用于冲突恢复
+                const originalStartPercent = parseFloat(handle.style.left) || 0;
+
+                dragState = {
+                    handle: this,
+                    handleType: handleType,
+                    segment: segment,
+                    task: task,
+                    track: track,
+                    trackRect: rect,
+                    startX: e.clientX,
+                    originalStartPercent: originalStartPercent,
+                    hasConflict: false,
+                    tooltip: null
+                };
+
+                // 创建 tooltip
+                createDragTooltip(e.clientX, e.clientY, handleType === 'start' ? segment.startTime : segment.endTime);
+
+                // 绑定全局事件
+                document.addEventListener('mousemove', onTimelineDrag);
+                document.addEventListener('mouseup', onTimelineDragEnd);
+            });
+        }
+
+        function onTimelineDrag(e) {
+            if (!dragState) return;
+
+            const { handle, handleType, segment, task, track, trackRect } = dragState;
+
+            // 计算鼠标相对于轨道的位置（百分比）
+            let relativeX = e.clientX - trackRect.left;
+            let percent = (relativeX / trackRect.width) * 100;
+
+            // 限制在 0-100% 范围内
+            percent = Math.max(0, Math.min(100, percent));
+
+            // 转换为分钟数，粒度化为5分钟
+            const totalMinutes = 1440;
+            let minutes = Math.round((percent / 100) * totalMinutes);
+            minutes = roundToGranularity(minutes);
+            minutes = Math.max(0, Math.min(1440, minutes));
+
+            // 转换回百分比
+            percent = (minutes / totalMinutes) * 100;
+
+            // 更新手柄位置
+            handle.style.left = percent + '%';
+
+            // 更新填充条
+            const fill = track.querySelector('.segment-fill');
+            const startHandle = track.querySelector('.handle-start');
+            const endHandle = track.querySelector('.handle-end');
+
+            let startPercent = parseFloat(startHandle.style.left) || 0;
+            let endPercent = parseFloat(endHandle.style.left) || 0;
+
+            if (handleType === 'start') {
+                // 确保开始时间不超过结束时间
+                if (percent > endPercent - 1) {
+                    percent = endPercent - 1;
+                    minutes = Math.round((percent / 100) * totalMinutes);
+                    minutes = roundToGranularity(minutes);
+                    percent = (minutes / totalMinutes) * 100;
+                    handle.style.left = percent + '%';
+                }
+                startPercent = percent;
+            } else {
+                // 确保结束时间不早于开始时间
+                if (percent < startPercent + 1) {
+                    percent = startPercent + 1;
+                    minutes = Math.round((percent / 100) * totalMinutes);
+                    minutes = roundToGranularity(minutes);
+                    percent = (minutes / totalMinutes) * 100;
+                    handle.style.left = percent + '%';
+                }
+                endPercent = percent;
+            }
+
+            if (fill) {
+                fill.style.left = startPercent + '%';
+                fill.style.width = (endPercent - startPercent) + '%';
+            }
+
+            // 更新 tooltip
+            updateDragTooltip(e.clientX, e.clientY, minutes);
+
+            // 检测冲突
+            const otherSegments = task.segments.filter(s => s.id !== segment.id);
+            const newStartTime = handleType === 'start' ? minutesToTime(minutes) : minutesToTime(Math.round((startPercent / 100) * 1440));
+            const newEndTime = handleType === 'start' ? minutesToTime(Math.round((endPercent / 100) * 1440)) : minutesToTime(minutes);
+
+            // 创建临时 segment 用于冲突检测
+            const tempSegment = {
+                startTime: timeToTimestamp(newStartTime, segment.startTime),
+                endTime: timeToTimestamp(newEndTime, segment.startTime)
+            };
+
+            const hasOverlap = checkSegmentOverlap(tempSegment, otherSegments);
+            dragState.hasConflict = hasOverlap;
+
+            if (hasOverlap) {
+                handle.classList.add('conflict');
+            } else {
+                handle.classList.remove('conflict');
+            }
+        }
+
+        function onTimelineDragEnd(e) {
+            if (!dragState) return;
+
+            const { handle, handleType, segment, task, hasConflict, originalStartPercent } = dragState;
+
+            // 移除 tooltip
+            removeDragTooltip();
+
+            if (hasConflict) {
+                // 恢复原始位置
+                handle.style.left = originalStartPercent + '%';
+                handle.classList.remove('conflict');
+
+                // 重新计算填充条
+                const track = handle.closest('.timeline-track');
+                const startHandle = track.querySelector('.handle-start');
+                const endHandle = track.querySelector('.handle-end');
+                const fill = track.querySelector('.segment-fill');
+
+                const startPercent = parseFloat(startHandle.style.left) || 0;
+                const endPercent = parseFloat(endHandle.style.left) || 0;
+
+                if (fill) {
+                    fill.style.left = startPercent + '%';
+                    fill.style.width = (endPercent - startPercent) + '%';
+                }
+
+                // 显示错误提示
+                alert('时间段不能与其他段重叠，已恢复原始位置');
+            } else {
+                // 无冲突，保存新时间
+                const track = handle.closest('.timeline-track');
+                const startHandle = track.querySelector('.handle-start');
+                const endHandle = track.querySelector('.handle-end');
+
+                const startPercent = parseFloat(startHandle.style.left) || 0;
+                const endPercent = parseFloat(endHandle.style.left) || 0;
+
+                const startMinutes = Math.round((startPercent / 100) * 1440);
+                const endMinutes = Math.round((endPercent / 100) * 1440);
+
+                // 更新时间戳（保持日期不变，只改时间）
+                const baseDate = new Date(segment.startTime);
+                const year = baseDate.getFullYear();
+                const month = baseDate.getMonth();
+                const day = baseDate.getDate();
+
+                const newStartDate = new Date(year, month, day, Math.floor(startMinutes / 60), startMinutes % 60);
+                const newEndDate = new Date(year, month, day, Math.floor(endMinutes / 60), endMinutes % 60);
+
+                segment.startTime = newStartDate.getTime();
+                if (segment.endTime !== null) {
+                    segment.endTime = newEndDate.getTime();
+                }
+
+                // 重新计算 rawDuration 和 effectiveDuration
+                if (segment.endTime !== null) {
+                    segment.rawDuration = segment.endTime - segment.startTime;
+                    segment.effectiveDuration = segment.rawDuration;
+                }
+
+                // 更新任务总计
+                updateTaskTotals(task);
+
+                // 保存到 localStorage
+                saveTodayTasks(todayTasks);
+
+                // 更新时间段文字显示
+                updateSegmentTextDisplay(segment);
+
+                // 更新 Dashboard 统计
+                updateDashboardStats();
+            }
+
+            // 清理
+            document.removeEventListener('mousemove', onTimelineDrag);
+            document.removeEventListener('mouseup', onTimelineDragEnd);
+            dragState = null;
+        }
+
+        function createDragTooltip(x, y, timestamp) {
+            removeDragTooltip();
+
+            const tooltip = document.createElement('div');
+            tooltip.className = 'timeline-tooltip';
+            tooltip.textContent = formatTime(new Date(timestamp));
+            tooltip.style.left = x + 'px';
+            tooltip.style.top = y + 'px';
+            document.body.appendChild(tooltip);
+
+            if (dragState) {
+                dragState.tooltip = tooltip;
+            }
+        }
+
+        function updateDragTooltip(x, y, minutes) {
+            if (!dragState || !dragState.tooltip) return;
+
+            const timeStr = minutesToTime(minutes);
+            dragState.tooltip.textContent = timeStr;
+            dragState.tooltip.style.left = x + 'px';
+            dragState.tooltip.style.top = (dragState.trackRect.top - 10) + 'px';
+        }
+
+        function removeDragTooltip() {
+            const existing = document.querySelector('.timeline-tooltip');
+            if (existing) {
+                existing.remove();
+            }
+        }
+
+        // 将时间字符串转换为时间戳（基于基准日期）
+        function timeToTimestamp(timeStr, baseTimestamp) {
+            const baseDate = new Date(baseTimestamp);
+            const [hours, minutes] = timeStr.split(':').map(Number);
+            return new Date(
+                baseDate.getFullYear(),
+                baseDate.getMonth(),
+                baseDate.getDate(),
+                hours,
+                minutes
+            ).getTime();
+        }
+
+        // 冲突检测
+        function checkSegmentOverlap(segment, otherSegments) {
+            if (!otherSegments || otherSegments.length === 0) return false;
+
+            const segStart = segment.startTime;
+            const segEnd = segment.endTime;
+
+            for (const other of otherSegments) {
+                const otherStart = other.startTime;
+                const otherEnd = other.endTime || Date.now();
+
+                // 检查是否有交集
+                if (segStart < otherEnd && segEnd > otherStart) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        // 更新时间段文字显示
+        function updateSegmentTextDisplay(segment) {
+            const timeEl = document.querySelector(`[data-segment-text="${segment.id}"]`);
+            const durationEl = document.querySelector(`[data-segment-duration="${segment.id}"]`);
+
+            if (timeEl) {
+                const startDate = new Date(segment.startTime);
+                const endDate = segment.endTime ? new Date(segment.endTime) : null;
+                const startTimeStr = formatTime(startDate);
+                const endTimeStr = endDate ? formatTime(endDate) : '进行中';
+                timeEl.textContent = `${startTimeStr} - ${endTimeStr}`;
+            }
+
+            if (durationEl && segment.endTime !== null) {
+                const rawMinutes = Math.floor(segment.rawDuration / 60000);
+                const effectiveMinutes = Math.floor(segment.effectiveDuration / 60000);
+                durationEl.textContent = `原始${formatDurationMinutes(rawMinutes)} | 有效${formatDurationMinutes(effectiveMinutes)}`;
+            }
         }
 
         function escapeHtml(text) {
@@ -1152,6 +1634,21 @@
                     showSegmentAddForm(task.id);
                 });
             }
+
+            // 绑定时间轴拖拽事件 (V2-005)
+            bindTimelineEvents(task, card);
+        }
+
+        // 绑定时间轴事件
+        function bindTimelineEvents(task, card) {
+            const handles = card.querySelectorAll('.handle');
+            handles.forEach(handle => {
+                const segmentId = handle.dataset.segmentId;
+                const segment = task.segments.find(s => s.id === segmentId);
+                if (segment) {
+                    initTimelineDrag(handle, segment, task);
+                }
+            });
         }
 
         // ----- 时间段展开/收起 (V2-004) -----
@@ -1992,6 +2489,148 @@
                 console.error('⚠️ 存在失败的测试，请检查实现！');
             } else {
                 console.log('✅ 所有 V2-004 测试通过！');
+            }
+        })();
+
+        // ==========================================
+        // V2-005: 拖拽进度条调整时间自测代码
+        // ==========================================
+        (function runV2005Tests() {
+            console.log('=== V2-005 拖拽进度条调整时间自测开始 ===');
+            let passCount = 0;
+            let failCount = 0;
+
+            function test(name, condition) {
+                if (condition) {
+                    console.log(`  [PASS] ${name}`);
+                    passCount++;
+                } else {
+                    console.error(`  [FAIL] ${name}`);
+                    failCount++;
+                }
+            }
+
+            // 准备测试数据
+            const testTask = createTask('V2-005 测试任务');
+            testTask.segments = [
+                { 
+                    id: 'seg-t1', 
+                    startTime: new Date('2026-04-21T09:00:00').getTime(), 
+                    endTime: new Date('2026-04-21T11:30:00').getTime(), 
+                    rawDuration: 9000000, 
+                    effectiveDuration: 9000000 
+                },
+                { 
+                    id: 'seg-t2', 
+                    startTime: new Date('2026-04-21T13:00:00').getTime(), 
+                    endTime: new Date('2026-04-21T15:15:00').getTime(), 
+                    rawDuration: 8100000, 
+                    effectiveDuration: 8100000 
+                }
+            ];
+            updateTaskTotals(testTask);
+            todayTasks = [testTask];
+
+            // AC1: 进度条HTML结构
+            console.log('\n--- AC1: 进度条HTML结构测试 ---');
+            test('AC1: buildTimelineHTML 函数存在', typeof buildTimelineHTML === 'function');
+            const timelineHTML = buildTimelineHTML(testTask.segments[0], testTask);
+            test('AC1: 包含 timeline-bar', timelineHTML.includes('timeline-bar'));
+            test('AC1: 包含 timeline-labels', timelineHTML.includes('timeline-labels'));
+            test('AC1: 包含 00:00 标签', timelineHTML.includes('00:00'));
+            test('AC1: 包含 06:00 标签', timelineHTML.includes('06:00'));
+            test('AC1: 包含 12:00 标签', timelineHTML.includes('12:00'));
+            test('AC1: 包含 18:00 标签', timelineHTML.includes('18:00'));
+            test('AC1: 包含 24:00 标签', timelineHTML.includes('24:00'));
+            test('AC1: 包含 timeline-track', timelineHTML.includes('timeline-track'));
+            test('AC1: 包含 segment-fill', timelineHTML.includes('segment-fill'));
+            test('AC1: 包含 handle-start', timelineHTML.includes('handle-start'));
+            test('AC1: 包含 handle-end', timelineHTML.includes('handle-end'));
+
+            // AC2: 时间计算
+            console.log('\n--- AC2: 时间计算测试 ---');
+            test('AC2: timeToMinutes("09:00") === 540', timeToMinutes('09:00') === 540);
+            test('AC2: timeToMinutes("12:30") === 750', timeToMinutes('12:30') === 750);
+            test('AC2: minutesToTime(540) === "09:00"', minutesToTime(540) === '09:00');
+            test('AC2: minutesToTime(750) === "12:30"', minutesToTime(750) === '12:30');
+            test('AC2: roundToGranularity(7) === 5', roundToGranularity(7) === 5);
+            test('AC2: roundToGranularity(8) === 10', roundToGranularity(8) === 10);
+            test('AC2: roundToGranularity(1439) === 1440', roundToGranularity(1439) === 1440);
+
+            // AC3: 休息时段显示
+            console.log('\n--- AC3: 休息时段显示测试 ---');
+            test('AC3: getBreakPeriods 函数存在', typeof getBreakPeriods === 'function');
+            test('AC3: getBreakPeriods 返回数组', Array.isArray(getBreakPeriods()));
+            const breakPeriods = getBreakPeriods();
+            test('AC3: 默认有休息时段', breakPeriods.length > 0);
+            test('AC3: buildBreakOverlays 函数存在', typeof buildBreakOverlays === 'function');
+            const overlaysHTML = buildBreakOverlays(testTask.segments[0]);
+            test('AC3: 生成 break-overlay', overlaysHTML.includes('break-overlay'));
+
+            // AC4: 拖拽逻辑函数
+            console.log('\n--- AC4: 拖拽逻辑函数测试 ---');
+            test('AC4: initTimelineDrag 函数存在', typeof initTimelineDrag === 'function');
+            test('AC4: onTimelineDrag 函数存在', typeof onTimelineDrag === 'function');
+            test('AC4: onTimelineDragEnd 函数存在', typeof onTimelineDragEnd === 'function');
+            test('AC4: createDragTooltip 函数存在', typeof createDragTooltip === 'function');
+            test('AC4: updateDragTooltip 函数存在', typeof updateDragTooltip === 'function');
+            test('AC4: removeDragTooltip 函数存在', typeof removeDragTooltip === 'function');
+            test('AC4: updateSegmentTextDisplay 函数存在', typeof updateSegmentTextDisplay === 'function');
+
+            // AC5: 冲突检测
+            console.log('\n--- AC5: 冲突检测测试 ---');
+            test('AC5: checkSegmentOverlap 函数存在', typeof checkSegmentOverlap === 'function');
+            
+            // 测试有重叠的情况
+            const seg1 = { startTime: new Date('2026-04-21T09:00:00').getTime(), endTime: new Date('2026-04-21T11:00:00').getTime() };
+            const otherSegs = [
+                { startTime: new Date('2026-04-21T10:00:00').getTime(), endTime: new Date('2026-04-21T12:00:00').getTime() }
+            ];
+            test('AC5: 重叠时间段检测为 true', checkSegmentOverlap(seg1, otherSegs) === true);
+
+            // 测试无重叠的情况
+            const seg2 = { startTime: new Date('2026-04-21T09:00:00').getTime(), endTime: new Date('2026-04-21T10:00:00').getTime() };
+            const otherSegs2 = [
+                { startTime: new Date('2026-04-21T11:00:00').getTime(), endTime: new Date('2026-04-21T12:00:00').getTime() }
+            ];
+            test('AC5: 非重叠时间段检测为 false', checkSegmentOverlap(seg2, otherSegs2) === false);
+
+            // 测试包含关系
+            const seg3 = { startTime: new Date('2026-04-21T09:00:00').getTime(), endTime: new Date('2026-04-21T14:00:00').getTime() };
+            const otherSegs3 = [
+                { startTime: new Date('2026-04-21T10:00:00').getTime(), endTime: new Date('2026-04-21T11:00:00').getTime() }
+            ];
+            test('AC5: 包含关系检测为 true', checkSegmentOverlap(seg3, otherSegs3) === true);
+
+            // 测试空数组
+            test('AC5: 空otherSegments返回 false', checkSegmentOverlap(seg1, []) === false);
+
+            // AC6: timeToTimestamp 函数
+            console.log('\n--- AC6: timeToTimestamp测试 ---');
+            test('AC6: timeToTimestamp 函数存在', typeof timeToTimestamp === 'function');
+            const baseTime = new Date('2026-04-21T10:00:00').getTime();
+            const newTimestamp = timeToTimestamp('14:30', baseTime);
+            const expectedDate = new Date('2026-04-21T14:30:00').getTime();
+            test('AC6: 时间转换正确', newTimestamp === expectedDate);
+
+            // AC7: 进度条位置计算
+            console.log('\n--- AC7: 进度条位置计算测试 ---');
+            const seg9am = testTask.segments[0];
+            const timelineHTML9am = buildTimelineHTML(seg9am, testTask);
+            // 09:00 = 540分钟 = 37.5%
+            test('AC7: 09:00 开始位置约 37.5%', timelineHTML9am.includes('left: 37.5'));
+            // 11:30 = 690分钟, 宽度 = (690-540)/1440*100 = 10.416...%
+            test('AC7: 11:30 结束位置', timelineHTML9am.includes('left: 37.5') && timelineHTML9am.includes('47.9'));
+
+            // 清理测试数据
+            todayTasks = [];
+            localStorage.removeItem(todayKey());
+
+            console.log(`\n=== V2-005 自测结束: ${passCount} 通过, ${failCount} 失败 ===`);
+            if (failCount > 0) {
+                console.error('⚠️ 存在失败的测试，请检查实现！');
+            } else {
+                console.log('✅ 所有 V2-005 测试通过！');
             }
         })();
 
