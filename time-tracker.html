@@ -406,7 +406,212 @@
          * - V2-006: 数据统计
          */
 
-        // V2 初始化占位
+        // ==========================================
+        // V2-002: 任务为中心的数据模型
+        // ==========================================
+
+        // ----- 常量定义 -----
+        const HOURS_PER_DAY = 8;
+        const STORAGE_KEY_PREFIX = 'time-tracker-tasks-';
+
+        // ----- 工具函数 -----
+        function generateId() {
+            return Date.now().toString(36) + Math.random().toString(36).substr(2, 9);
+        }
+
+        function formatDate(date) {
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        }
+
+        function todayKey() {
+            return STORAGE_KEY_PREFIX + formatDate(new Date());
+        }
+
+        // ----- Task 工厂函数 -----
+        function createTask(taskName) {
+            return {
+                id: generateId(),
+                taskName: taskName,
+                status: 'idle',
+                createdAt: Date.now(),
+                segments: [],
+                totalRawDuration: 0,
+                totalEffectiveDuration: 0
+            };
+        }
+
+        // ----- TimeSegment 工厂函数 -----
+        function createSegment(startTime) {
+            return {
+                id: generateId(),
+                startTime: startTime,
+                endTime: null,
+                rawDuration: 0,
+                effectiveDuration: 0,
+                breakOverlapMinutes: 0
+            };
+        }
+
+        // ----- localStorage 操作 -----
+        function saveTasks(date, tasks) {
+            const key = STORAGE_KEY_PREFIX + formatDate(date);
+            localStorage.setItem(key, JSON.stringify(tasks));
+        }
+
+        function loadTasks(date) {
+            const key = STORAGE_KEY_PREFIX + formatDate(date);
+            const data = localStorage.getItem(key);
+            return data ? JSON.parse(data) : [];
+        }
+
+        function saveTodayTasks(tasks) {
+            localStorage.setItem(todayKey(), JSON.stringify(tasks));
+        }
+
+        function loadTodayTasks() {
+            const data = localStorage.getItem(todayKey());
+            return data ? JSON.parse(data) : [];
+        }
+
+        // ----- 任务状态机辅助函数 -----
+        function canStart(task) {
+            return task.status === 'idle' || task.status === 'paused';
+        }
+
+        function canPause(task) {
+            return task.status === 'running';
+        }
+
+        function canComplete(task) {
+            return task.status === 'running' || task.status === 'paused';
+        }
+
+        // ----- 时间段计算函数 -----
+        function calculateSegmentDuration(segment, endTime) {
+            if (!segment.startTime || !endTime) {
+                return 0;
+            }
+            return endTime - segment.startTime;
+        }
+
+        function updateTaskTotals(task) {
+            task.totalRawDuration = task.segments.reduce((sum, seg) => sum + (seg.rawDuration || 0), 0);
+            task.totalEffectiveDuration = task.segments.reduce((sum, seg) => sum + (seg.effectiveDuration || 0), 0);
+        }
+
+        // ==========================================
+        // V2-002 自测代码（浏览器控制台验证用）
+        // ==========================================
+        (function runV2Tests() {
+            console.log('=== V2-002 数据模型自测开始 ===');
+            let passCount = 0;
+            let failCount = 0;
+
+            function test(name, condition) {
+                if (condition) {
+                    console.log(`  [PASS] ${name}`);
+                    passCount++;
+                } else {
+                    console.error(`  [FAIL] ${name}`);
+                    failCount++;
+                }
+            }
+
+            // AC1: createTask('测试任务') 返回正确的任务对象
+            const task = createTask('测试任务');
+            test('AC1: createTask 返回对象', typeof task === 'object' && task !== null);
+            test('AC1: task 有 id 属性', typeof task.id === 'string' && task.id.length > 0);
+            test('AC1: taskName 正确', task.taskName === '测试任务');
+            test('AC1: status 为 idle', task.status === 'idle');
+            test('AC1: createdAt 是数字', typeof task.createdAt === 'number');
+            test('AC1: totalRawDuration 为 0', task.totalRawDuration === 0);
+            test('AC1: totalEffectiveDuration 为 0', task.totalEffectiveDuration === 0);
+
+            // AC2: 任务对象包含空的 segments 数组
+            test('AC2: segments 是数组', Array.isArray(task.segments));
+            test('AC2: segments 为空', task.segments.length === 0);
+
+            // AC3: saveTodayTasks([task]) 后能在 localStorage 看到数据
+            saveTodayTasks([task]);
+            const rawData = localStorage.getItem(todayKey());
+            test('AC3: localStorage 有数据', rawData !== null);
+            test('AC3: localStorage 数据可解析', (() => {
+                try {
+                    const parsed = JSON.parse(rawData);
+                    return Array.isArray(parsed) && parsed.length === 1;
+                } catch (e) {
+                    return false;
+                }
+            })());
+
+            // AC4: loadTodayTasks() 能正确读取并返回任务数组
+            const loadedTasks = loadTodayTasks();
+            test('AC4: loadTodayTasks 返回数组', Array.isArray(loadedTasks));
+            test('AC4: 返回的数组长度正确', loadedTasks.length === 1);
+            test('AC4: 返回的任务 id 匹配', loadedTasks[0].id === task.id);
+            test('AC4: 返回的任务 name 匹配', loadedTasks[0].taskName === '测试任务');
+
+            // AC5: createSegment(Date.now()) 返回正确的时间段对象
+            const now = Date.now();
+            const segment = createSegment(now);
+            test('AC5: createSegment 返回对象', typeof segment === 'object' && segment !== null);
+            test('AC5: segment 有 id', typeof segment.id === 'string' && segment.id.length > 0);
+            test('AC5: startTime 正确', segment.startTime === now);
+            test('AC5: endTime 为 null', segment.endTime === null);
+            test('AC5: rawDuration 为 0', segment.rawDuration === 0);
+            test('AC5: effectiveDuration 为 0', segment.effectiveDuration === 0);
+            test('AC5: breakOverlapMinutes 为 0', segment.breakOverlapMinutes === 0);
+
+            // AC6: 任务状态机函数返回正确的布尔值
+            const idleTask = { status: 'idle' };
+            const runningTask = { status: 'running' };
+            const pausedTask = { status: 'paused' };
+            const completedTask = { status: 'completed' };
+
+            test('AC6: canStart(idle) === true', canStart(idleTask) === true);
+            test('AC6: canStart(paused) === true', canStart(pausedTask) === true);
+            test('AC6: canStart(running) === false', canStart(runningTask) === false);
+            test('AC6: canStart(completed) === false', canStart(completedTask) === false);
+
+            test('AC6: canPause(idle) === false', canPause(idleTask) === false);
+            test('AC6: canPause(running) === true', canPause(runningTask) === true);
+            test('AC6: canPause(paused) === false', canPause(pausedTask) === false);
+            test('AC6: canPause(completed) === false', canPause(completedTask) === false);
+
+            test('AC6: canComplete(idle) === false', canComplete(idleTask) === false);
+            test('AC6: canComplete(running) === true', canComplete(runningTask) === true);
+            test('AC6: canComplete(paused) === true', canComplete(pausedTask) === true);
+            test('AC6: canComplete(completed) === false', canComplete(completedTask) === false);
+
+            // 额外测试：calculateSegmentDuration
+            const seg = createSegment(1000);
+            test('calculateSegmentDuration: 基本计算', calculateSegmentDuration(seg, 5000) === 4000);
+            test('calculateSegmentDuration: 缺少 endTime', calculateSegmentDuration(seg, null) === 0);
+
+            // 额外测试：updateTaskTotals
+            const taskWithSegs = createTask('计算测试');
+            taskWithSegs.segments = [
+                { rawDuration: 1000, effectiveDuration: 800 },
+                { rawDuration: 2000, effectiveDuration: 1500 }
+            ];
+            updateTaskTotals(taskWithSegs);
+            test('updateTaskTotals: totalRawDuration', taskWithSegs.totalRawDuration === 3000);
+            test('updateTaskTotals: totalEffectiveDuration', taskWithSegs.totalEffectiveDuration === 2300);
+
+            // 清理测试数据
+            localStorage.removeItem(todayKey());
+
+            console.log(`=== V2-002 自测结束: ${passCount} 通过, ${failCount} 失败 ===`);
+            if (failCount > 0) {
+                console.error('⚠️ 存在失败的测试，请检查实现！');
+            } else {
+                console.log('✅ 所有测试通过！');
+            }
+        })();
+
         console.log('V2 Modern Dashboard UI 已加载');
     </script>
 </body>
