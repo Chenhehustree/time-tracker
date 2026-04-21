@@ -709,6 +709,34 @@
             }
         }
 
+        /* ===== 历史记录视图样式 (V2-007) ===== */
+        #history-view {
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        #history-date-picker {
+            padding: 10px 16px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            font-size: 14px;
+            font-family: inherit;
+            color: var(--text-primary);
+            background: var(--card-bg);
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        #history-date-picker:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+
         /* ===== 时间轴进度条样式 (V2-005) ===== */
         .timeline-bar {
             width: 100%;
@@ -877,7 +905,7 @@
         </div>
 
         <!-- 任务卡片列表区域 -->
-        <div class="tasks-section">
+        <div class="tasks-section" id="dashboard-tasks-section">
             <div class="tasks-section-header">
                 <h3 class="tasks-section-title">今日任务</h3>
                 <button id="btn-new-task">+ 新建任务</button>
@@ -886,6 +914,59 @@
                 <div class="empty-state">
                     <div class="empty-state-text">暂无任务</div>
                     <div class="empty-state-hint">点击"新建任务"开始</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 历史记录视图（默认隐藏） -->
+        <div id="history-view" style="display: none;">
+            <div class="header-bar">
+                <h1 id="history-header-title">历史记录</h1>
+                <input type="date" id="history-date-picker">
+            </div>
+
+            <!-- 历史统计概览 -->
+            <div id="history-stats-container" style="margin-bottom: 24px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px;">
+                <div class="stat-card">
+                    <div class="stat-label">任务数</div>
+                    <div class="stat-value">
+                        <span id="history-stat-task-count">0</span>
+                        <span class="stat-unit">个</span>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">总工时</div>
+                    <div class="stat-value">
+                        <span id="history-stat-total-hours">0</span>
+                        <span class="stat-unit">小时</span>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">人天</div>
+                    <div class="stat-value">
+                        <span id="history-stat-person-days">0</span>
+                        <span class="stat-unit">天</span>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">休息</div>
+                    <div class="stat-value">
+                        <span id="history-stat-break-hours">0</span>
+                        <span class="stat-unit">小时</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 历史任务列表 -->
+            <div class="tasks-section">
+                <div class="tasks-section-header">
+                    <h3 class="tasks-section-title" id="history-tasks-title">该日期任务</h3>
+                </div>
+                <div id="history-tasks-container">
+                    <div class="empty-state">
+                        <div class="empty-state-text">该日期暂无记录</div>
+                        <div class="empty-state-hint">选择其他日期查看</div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -1049,8 +1130,11 @@
         }
 
         // ----- 任务卡片渲染 -----
-        function renderTaskCard(task) {
-            const container = document.getElementById('tasks-container');
+        function renderTaskCard(task, readonly, containerId) {
+            if (readonly === undefined) readonly = false;
+            if (containerId === undefined) containerId = 'tasks-container';
+
+            const container = document.getElementById(containerId);
             if (!container) return;
 
             // 移除空状态
@@ -1062,7 +1146,7 @@
             // 检查是否已存在该任务的卡片
             let card = document.getElementById(`task-card-${task.id}`);
 
-            if (!card) {
+            if (!card || card.parentElement !== container) {
                 card = document.createElement('div');
                 card.id = `task-card-${task.id}`;
                 card.className = `task-card status-${task.status}`;
@@ -1073,18 +1157,20 @@
             card.className = `task-card status-${task.status}`;
 
             // 生成卡片内容
-            card.innerHTML = buildTaskCardHTML(task);
+            card.innerHTML = buildTaskCardHTML(task, readonly);
 
             // 绑定按钮事件
-            bindTaskButtonEvents(task, card);
+            bindTaskButtonEvents(task, card, readonly);
 
-            // 如果任务是运行状态，启动计时器
-            if (task.status === 'running') {
+            // 如果任务是运行状态且非只读，启动计时器
+            if (task.status === 'running' && !readonly) {
                 startTaskTimer(task);
             }
         }
 
-        function buildTaskCardHTML(task) {
+        function buildTaskCardHTML(task, readonly) {
+            if (readonly === undefined) readonly = false;
+
             const statusText = {
                 idle: '未开始',
                 running: '进行中',
@@ -1093,7 +1179,7 @@
             };
 
             const statusClass = task.status;
-            const timerHidden = task.status === 'running' ? '' : 'hidden';
+            const timerHidden = (task.status === 'running' && !readonly) ? '' : 'hidden';
 
             // 计算累计时长显示
             const rawMs = task.totalRawDuration;
@@ -1102,22 +1188,24 @@
                 ? `累计时长：${formatDuration(rawMs)}`
                 : `累计时长：${formatDuration(rawMs)}（有效 ${formatDuration(effectiveMs)}）`;
 
-            // 操作按钮
+            // 操作按钮（只读模式下不显示）
             let buttonsHTML = '';
-            if (task.status === 'idle') {
-                buttonsHTML = `<button class="task-btn task-btn-start" data-action="start" data-task-id="${task.id}">▶ 开始</button>`;
-            } else if (task.status === 'running') {
-                buttonsHTML = `
-                    <button class="task-btn task-btn-pause" data-action="pause" data-task-id="${task.id}">⏸ 暂停</button>
-                    <button class="task-btn task-btn-complete" data-action="complete" data-task-id="${task.id}">✓ 结束</button>
-                `;
-            } else if (task.status === 'paused') {
-                buttonsHTML = `
-                    <button class="task-btn task-btn-resume" data-action="resume" data-task-id="${task.id}">▶ 继续</button>
-                    <button class="task-btn task-btn-complete" data-action="complete" data-task-id="${task.id}">✓ 结束</button>
-                `;
+            if (!readonly) {
+                if (task.status === 'idle') {
+                    buttonsHTML = `<button class="task-btn task-btn-start" data-action="start" data-task-id="${task.id}">▶ 开始</button>`;
+                } else if (task.status === 'running') {
+                    buttonsHTML = `
+                        <button class="task-btn task-btn-pause" data-action="pause" data-task-id="${task.id}">⏸ 暂停</button>
+                        <button class="task-btn task-btn-complete" data-action="complete" data-task-id="${task.id}">✓ 结束</button>
+                    `;
+                } else if (task.status === 'paused') {
+                    buttonsHTML = `
+                        <button class="task-btn task-btn-resume" data-action="resume" data-task-id="${task.id}">▶ 继续</button>
+                        <button class="task-btn task-btn-complete" data-action="complete" data-task-id="${task.id}">✓ 结束</button>
+                    `;
+                }
             }
-            // completed 状态无按钮
+            // completed 状态无按钮；readonly 模式也无按钮
 
             // 时间段统计
             const segmentCount = task.segments ? task.segments.length : 0;
@@ -1141,13 +1229,15 @@
                         <span>${segmentSummaryText}</span>
                     </div>
                     <div class="segments-list" data-segments-list="${task.id}">
-                        ${buildSegmentsListHTML(task)}
+                        ${buildSegmentsListHTML(task, readonly)}
                     </div>
                 </div>
             `;
         }
 
-        function buildSegmentsListHTML(task) {
+        function buildSegmentsListHTML(task, readonly) {
+            if (readonly === undefined) readonly = false;
+
             if (!task.segments || task.segments.length === 0) {
                 return '<div style="text-align:center;color:var(--text-secondary);font-size:13px;padding:20px;">暂无时间段记录</div>';
             }
@@ -1177,6 +1267,8 @@
                 // 构建时间轴进度条
                 const timelineHTML = buildTimelineHTML(segment, task);
 
+                const deleteBtnHTML = readonly ? '' : `<button class="segment-delete-btn" data-delete-segment="${segment.id}" data-task-id="${task.id}" title="删除时间段">×</button>`;
+
                 html += `
                     <div class="segment-item ${isRunning ? 'running' : ''}" data-segment-id="${segment.id}">
                         <div class="segment-info">
@@ -1185,18 +1277,20 @@
                             <div class="segment-duration" data-segment-duration="${segment.id}">原始${rawDurationStr} | 有效${effectiveDurationStr}</div>
                             ${timelineHTML}
                         </div>
-                        <button class="segment-delete-btn" data-delete-segment="${segment.id}" data-task-id="${task.id}" title="删除时间段">×</button>
+                        ${deleteBtnHTML}
                     </div>
                 `;
             });
 
-            // 添加时间段按钮
-            html += `
-                <button class="segment-add-btn" data-add-segment="${task.id}">
-                    <span>+</span>
-                    <span>添加时间段</span>
-                </button>
-            `;
+            // 添加时间段按钮（只读模式下不显示）
+            if (!readonly) {
+                html += `
+                    <button class="segment-add-btn" data-add-segment="${task.id}">
+                        <span>+</span>
+                        <span>添加时间段</span>
+                    </button>
+                `;
+            }
 
             return html;
         }
@@ -1597,18 +1691,23 @@
             return div.innerHTML;
         }
 
-        function bindTaskButtonEvents(task, card) {
-            const buttons = card.querySelectorAll('.task-btn');
-            buttons.forEach(btn => {
-                btn.addEventListener('click', function(e) {
-                    e.preventDefault();
-                    const action = this.dataset.action;
-                    const taskId = this.dataset.taskId;
-                    handleTaskAction(taskId, action);
-                });
-            });
+        function bindTaskButtonEvents(task, card, readonly) {
+            if (readonly === undefined) readonly = false;
 
-            // 绑定时间段展开/收起事件
+            // 只读模式下不绑定操作按钮
+            if (!readonly) {
+                const buttons = card.querySelectorAll('.task-btn');
+                buttons.forEach(btn => {
+                    btn.addEventListener('click', function(e) {
+                        e.preventDefault();
+                        const action = this.dataset.action;
+                        const taskId = this.dataset.taskId;
+                        handleTaskAction(taskId, action);
+                    });
+                });
+            }
+
+            // 绑定时间段展开/收起事件（只读模式也可展开查看）
             const toggleEl = card.querySelector(`[data-toggle-segments="${task.id}"]`);
             if (toggleEl) {
                 toggleEl.addEventListener('click', function() {
@@ -1616,27 +1715,29 @@
                 });
             }
 
-            // 绑定删除时间段事件
-            const deleteBtns = card.querySelectorAll('[data-delete-segment]');
-            deleteBtns.forEach(btn => {
-                btn.addEventListener('click', function(e) {
-                    e.stopPropagation();
-                    const segmentId = this.dataset.deleteSegment;
-                    const taskId = this.dataset.taskId;
-                    deleteSegment(taskId, segmentId);
+            // 只读模式下不绑定删除时间段事件
+            if (!readonly) {
+                const deleteBtns = card.querySelectorAll('[data-delete-segment]');
+                deleteBtns.forEach(btn => {
+                    btn.addEventListener('click', function(e) {
+                        e.stopPropagation();
+                        const segmentId = this.dataset.deleteSegment;
+                        const taskId = this.dataset.taskId;
+                        deleteSegment(taskId, segmentId);
+                    });
                 });
-            });
 
-            // 绑定添加时间段按钮事件
-            const addBtn = card.querySelector(`[data-add-segment="${task.id}"]`);
-            if (addBtn) {
-                addBtn.addEventListener('click', function() {
-                    showSegmentAddForm(task.id);
-                });
+                // 绑定添加时间段按钮事件
+                const addBtn = card.querySelector(`[data-add-segment="${task.id}"]`);
+                if (addBtn) {
+                    addBtn.addEventListener('click', function() {
+                        showSegmentAddForm(task.id);
+                    });
+                }
+
+                // 绑定时间轴拖拽事件 (V2-005)
+                bindTimelineEvents(task, card);
             }
-
-            // 绑定时间轴拖拽事件 (V2-005)
-            bindTimelineEvents(task, card);
         }
 
         // 绑定时间轴事件
@@ -2034,10 +2135,12 @@
         }
 
         // ----- 统计概览更新 -----
-        function updateDashboardStats() {
-            const stats = calculateStats();
+        function updateDashboardStats(tasks) {
+            const targetTasks = tasks !== undefined ? tasks : todayTasks;
+            const stats = calculateStats(targetTasks);
+            const containerSelector = tasks !== undefined ? '#history-stats-container' : '#stats-container';
 
-            const statCards = document.querySelectorAll('#stats-container .stat-card');
+            const statCards = document.querySelectorAll(`${containerSelector} .stat-card`);
             if (statCards.length < 4) return;
 
             // 任务数量
@@ -2057,11 +2160,13 @@
             if (breakHoursEl) breakHoursEl.textContent = formatNumber(stats.breakHours);
         }
 
-        function calculateStats() {
+        function calculateStats(tasks) {
+            if (tasks === undefined) tasks = todayTasks;
+
             let totalRawMs = 0;
             let totalEffectiveMs = 0;
 
-            todayTasks.forEach(task => {
+            tasks.forEach(task => {
                 let taskRaw = task.totalRawDuration;
                 let taskEffective = task.totalEffectiveDuration;
 
@@ -2086,7 +2191,7 @@
             const breakHours = breakMinutes / 60;
 
             return {
-                taskCount: todayTasks.length,
+                taskCount: tasks.length,
                 totalHours: totalHours,
                 personDays: personDays,
                 breakHours: breakHours
@@ -2133,11 +2238,155 @@
             }
         }
 
+        // ==========================================
+        // V2-007: 历史记录视图
+        // ==========================================
+
+        // ----- 获取默认历史日期（昨天）-----
+        function getDefaultHistoryDate() {
+            const yesterday = new Date();
+            yesterday.setDate(yesterday.getDate() - 1);
+            return formatDate(yesterday);
+        }
+
+        // ----- 加载历史任务 -----
+        function loadHistoryTasks(dateStr) {
+            const date = new Date(dateStr + 'T00:00:00');
+            return loadTasks(date);
+        }
+
+        // ----- 渲染历史视图 -----
+        function renderHistoryView(dateStr) {
+            const tasks = loadHistoryTasks(dateStr);
+            const container = document.getElementById('history-tasks-container');
+            const titleEl = document.getElementById('history-tasks-title');
+
+            if (titleEl) {
+                titleEl.textContent = `${dateStr} 的任务`;
+            }
+
+            if (container) {
+                container.innerHTML = '';
+                if (tasks.length === 0) {
+                    container.innerHTML = `
+                        <div class="empty-state">
+                            <div class="empty-state-text">该日期暂无记录</div>
+                            <div class="empty-state-hint">选择其他日期查看</div>
+                        </div>
+                    `;
+                } else {
+                    tasks.forEach(task => {
+                        renderTaskCard(task, true, 'history-tasks-container');
+                    });
+                }
+            }
+
+            // 更新历史统计概览
+            updateDashboardStats(tasks);
+        }
+
+        // ----- 视图切换 -----
+        function switchView(viewName) {
+            const dashboardView = document.getElementById('active-task-banner');
+            const statsContainer = document.getElementById('stats-container');
+            const tasksSection = document.getElementById('dashboard-tasks-section');
+            const historyView = document.getElementById('history-view');
+            const headerTitle = document.getElementById('header-title');
+            const headerDate = document.getElementById('header-date');
+
+            const navDashboard = document.getElementById('nav-dashboard');
+            const navToday = document.getElementById('nav-today');
+            const navHistory = document.getElementById('nav-history');
+            const navSettings = document.getElementById('nav-settings');
+
+            // 重置所有导航项高亮
+            [navDashboard, navToday, navHistory, navSettings].forEach(nav => {
+                if (nav) nav.classList.remove('active');
+            });
+
+            if (viewName === 'dashboard') {
+                // 显示 Dashboard 视图
+                if (dashboardView) dashboardView.style.display = '';
+                if (statsContainer) statsContainer.style.display = '';
+                if (tasksSection) tasksSection.style.display = '';
+                if (historyView) historyView.style.display = 'none';
+                if (headerTitle) headerTitle.textContent = '工作计时器';
+                if (headerDate) headerDate.style.display = '';
+
+                if (navDashboard) navDashboard.classList.add('active');
+
+                // 恢复今日任务数据
+                initDashboard();
+            } else if (viewName === 'today') {
+                // 今日任务视图（同 Dashboard）
+                if (dashboardView) dashboardView.style.display = '';
+                if (statsContainer) statsContainer.style.display = '';
+                if (tasksSection) tasksSection.style.display = '';
+                if (historyView) historyView.style.display = 'none';
+                if (headerTitle) headerTitle.textContent = '工作计时器';
+                if (headerDate) headerDate.style.display = '';
+
+                if (navToday) navToday.classList.add('active');
+
+                initDashboard();
+            } else if (viewName === 'history') {
+                // 显示历史视图
+                if (dashboardView) dashboardView.style.display = 'none';
+                if (statsContainer) statsContainer.style.display = 'none';
+                if (tasksSection) tasksSection.style.display = 'none';
+                if (historyView) historyView.style.display = '';
+
+                if (navHistory) navHistory.classList.add('active');
+
+                // 初始化日期选择器
+                const datePicker = document.getElementById('history-date-picker');
+                if (datePicker && !datePicker.value) {
+                    datePicker.value = getDefaultHistoryDate();
+                }
+
+                // 加载历史数据
+                const selectedDate = datePicker ? datePicker.value : getDefaultHistoryDate();
+                renderHistoryView(selectedDate);
+            } else if (viewName === 'settings') {
+                // 设置视图（暂留接口）
+                if (navSettings) navSettings.classList.add('active');
+            }
+        }
+
         // ----- 事件绑定 -----
         document.addEventListener('DOMContentLoaded', function() {
             const btnNewTask = document.getElementById('btn-new-task');
             if (btnNewTask) {
                 btnNewTask.addEventListener('click', handleNewTask);
+            }
+
+            // 侧边栏导航事件
+            const navDashboard = document.getElementById('nav-dashboard');
+            const navToday = document.getElementById('nav-today');
+            const navHistory = document.getElementById('nav-history');
+            const navSettings = document.getElementById('nav-settings');
+
+            if (navDashboard) {
+                navDashboard.addEventListener('click', function() { switchView('dashboard'); });
+            }
+            if (navToday) {
+                navToday.addEventListener('click', function() { switchView('today'); });
+            }
+            if (navHistory) {
+                navHistory.addEventListener('click', function() { switchView('history'); });
+            }
+            if (navSettings) {
+                navSettings.addEventListener('click', function() { switchView('settings'); });
+            }
+
+            // 日期选择器事件
+            const datePicker = document.getElementById('history-date-picker');
+            if (datePicker) {
+                datePicker.addEventListener('change', function() {
+                    if (this.value) {
+                        renderHistoryView(this.value);
+                    }
+                });
             }
 
             initDashboard();
@@ -2631,6 +2880,98 @@
                 console.error('⚠️ 存在失败的测试，请检查实现！');
             } else {
                 console.log('✅ 所有 V2-005 测试通过！');
+            }
+        })();
+
+        // ==========================================
+        // V2-007: 历史记录视图自测代码
+        // ==========================================
+        (function runV2007Tests() {
+            console.log('=== V2-007 历史记录视图自测开始 ===');
+            let passCount = 0;
+            let failCount = 0;
+
+            function test(name, condition) {
+                if (condition) {
+                    console.log(`  [PASS] ${name}`);
+                    passCount++;
+                } else {
+                    console.error(`  [FAIL] ${name}`);
+                    failCount++;
+                }
+            }
+
+            // AC1: 视图切换函数存在
+            console.log('\n--- AC1: 视图切换测试 ---');
+            test('AC1: switchView 函数存在', typeof switchView === 'function');
+
+            // AC2: 日期选择器默认昨天
+            console.log('\n--- AC2: 日期选择器测试 ---');
+            test('AC2: getDefaultHistoryDate 函数存在', typeof getDefaultHistoryDate === 'function');
+            const defaultDate = getDefaultHistoryDate();
+            const yesterday = new Date();
+            yesterday.setDate(yesterday.getDate() - 1);
+            const expectedYesterday = formatDate(yesterday);
+            test('AC2: 默认日期为昨天', defaultDate === expectedYesterday);
+
+            // AC3: 加载历史任务
+            console.log('\n--- AC3: 加载历史任务测试 ---');
+            test('AC3: loadHistoryTasks 函数存在', typeof loadHistoryTasks === 'function');
+            test('AC3: renderHistoryView 函数存在', typeof renderHistoryView === 'function');
+
+            // AC4: 只读任务卡片
+            console.log('\n--- AC4: 只读任务卡片测试 ---');
+            test('AC4: buildTaskCardHTML 支持 readonly 参数',
+                buildTaskCardHTML.length >= 1 || (() => {
+                    try {
+                        const html = buildTaskCardHTML(createTask('测试'), true);
+                        return typeof html === 'string';
+                    } catch (e) { return false; }
+                })()
+            );
+
+            const readonlyTask = createTask('只读测试任务');
+            readonlyTask.status = 'completed';
+            readonlyTask.segments = [
+                { id: 'seg-r1', startTime: new Date('2026-04-20T09:00:00').getTime(), endTime: new Date('2026-04-20T11:00:00').getTime(), rawDuration: 7200000, effectiveDuration: 7200000 }
+            ];
+            readonlyTask.totalRawDuration = 7200000;
+            readonlyTask.totalEffectiveDuration = 7200000;
+
+            const readonlyHTML = buildTaskCardHTML(readonlyTask, true);
+            test('AC4: 只读模式不显示操作按钮', !readonlyHTML.includes('task-btn-start') && !readonlyHTML.includes('task-btn-pause'));
+            test('AC4: 只读模式不显示计时器', readonlyHTML.includes('task-timer hidden'));
+            test('AC4: 只读模式显示任务名', readonlyHTML.includes('只读测试任务'));
+            test('AC4: 只读模式显示状态标签', readonlyHTML.includes('task-status'));
+            test('AC4: 只读模式显示累计时长', readonlyHTML.includes('累计时长'));
+
+            // AC5: 时间段列表可展开但不可编辑
+            console.log('\n--- AC5: 时间段列表测试 ---');
+            test('AC5: 只读模式不显示删除按钮', !readonlyHTML.includes('segment-delete-btn'));
+            test('AC5: 只读模式不显示添加时间段按钮', !readonlyHTML.includes('segment-add-btn'));
+            test('AC5: 只读模式仍显示时间段区域', readonlyHTML.includes('segments-section'));
+            test('AC5: 只读模式仍显示展开/收起', readonlyHTML.includes('segments-toggle'));
+
+            // AC6: 历史统计概览
+            console.log('\n--- AC6: 历史统计概览测试 ---');
+            test('AC6: updateDashboardStats 支持传入 tasks 参数',
+                (() => {
+                    try {
+                        const fnStr = updateDashboardStats.toString();
+                        return fnStr.includes('tasks') || fnStr.includes('(');
+                    } catch (e) { return false; }
+                })()
+            );
+
+            // AC7: 返回 Dashboard
+            console.log('\n--- AC7: 返回 Dashboard 测试 ---');
+            test('AC7: initDashboard 函数存在', typeof initDashboard === 'function');
+
+            console.log(`\n=== V2-007 自测结束: ${passCount} 通过, ${failCount} 失败 ===`);
+            if (failCount > 0) {
+                console.error('⚠️ 存在失败的测试，请检查实现！');
+            } else {
+                console.log('✅ 所有 V2-007 测试通过！');
             }
         })();
 

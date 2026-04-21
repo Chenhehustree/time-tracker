@@ -23,9 +23,9 @@ source:
 | 2 | V2-002 | 任务为中心的数据模型重构 | completed | 1 |
 | 3 | V2-003 | 任务卡片渲染与交互 | completed | 1 |
 | 4 | V2-004 | 时间段展开/收起与年月时间显示 | completed | 1 |
-| 5 | V2-005 | 拖拽进度条调整时间 | in_progress | 0 |
-| 6 | V2-006 | Dashboard统计概览与当前进行中任务高亮 | pending | 0 |
-| 7 | V2-007 | 历史记录视图 | pending | 0 |
+| 5 | V2-005 | 拖拽进度条调整时间 | completed | 1 |
+| 6 | V2-006 | Dashboard统计概览与当前进行中任务高亮 | completed | 0 |
+| 7 | V2-007 | 历史记录视图 | in_progress | 0 |
 | 8 | V2-008 | 休息时段设置与扣除逻辑迁移 | pending | 0 |
 | 9 | V2-009 | 数据导出导入适配V2格式 | pending | 0 |
 | 10 | V2-010 | 侧边栏导航与视图切换 | pending | 0 |
