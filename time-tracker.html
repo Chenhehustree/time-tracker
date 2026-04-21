@@ -830,6 +830,92 @@
             border: 4px solid transparent;
             border-top-color: #1f2937;
         }
+
+        /* ===== 设置视图样式 (V2-008) ===== */
+        #settings-view {
+            animation: fadeIn 0.3s ease;
+        }
+
+        .settings-section {
+            background: var(--card-bg);
+            border-radius: 12px;
+            padding: 24px;
+            box-shadow: var(--shadow);
+            max-width: 800px;
+        }
+
+        .settings-section-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 20px;
+        }
+
+        .break-period-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 16px;
+            background: #f9fafb;
+            border-radius: 8px;
+            margin-bottom: 12px;
+            border: 1px solid var(--border);
+            flex-wrap: wrap;
+        }
+
+        .break-period-field {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .break-period-field label {
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+
+        .break-period-field input[type="text"],
+        .break-period-field input[type="time"] {
+            padding: 8px 10px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-size: 14px;
+            font-family: inherit;
+            width: 140px;
+        }
+
+        .break-period-field input[type="color"] {
+            width: 40px;
+            height: 36px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            cursor: pointer;
+            padding: 2px;
+        }
+
+        .break-period-delete-btn {
+            background: none;
+            border: none;
+            color: var(--danger);
+            font-size: 20px;
+            cursor: pointer;
+            padding: 4px 8px;
+            border-radius: 4px;
+            transition: all 0.2s ease;
+            margin-left: auto;
+        }
+
+        .break-period-delete-btn:hover {
+            background: rgba(239, 68, 68, 0.1);
+        }
+
+        .settings-actions {
+            display: flex;
+            gap: 12px;
+            margin-top: 24px;
+            padding-top: 20px;
+            border-top: 1px solid var(--border);
+        }
     </style>
 </head>
 <body>
@@ -967,6 +1053,24 @@
                         <div class="empty-state-text">该日期暂无记录</div>
                         <div class="empty-state-hint">选择其他日期查看</div>
                     </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 设置视图（默认隐藏） -->
+        <div id="settings-view" style="display: none;">
+            <div class="header-bar">
+                <h1 id="settings-header-title">设置</h1>
+            </div>
+            <div class="settings-section">
+                <h3 class="settings-section-title">休息时段设置</h3>
+                <div id="break-periods-list">
+                    <!-- 休息时段列表将在这里渲染 -->
+                </div>
+                <button id="btn-add-break-period" class="task-btn task-btn-start" style="margin-top: 12px;">+ 添加休息时段</button>
+                <div class="settings-actions">
+                    <button id="btn-save-settings" class="task-btn task-btn-start">保存设置</button>
+                    <button id="btn-back-to-dashboard" class="task-btn" style="background: #e5e7eb; color: var(--text-primary);">返回 Dashboard</button>
                 </div>
             </div>
         </div>
@@ -1367,10 +1471,91 @@
 
         // 获取休息时段配置
         function getBreakPeriods() {
-            // 默认休息时段：12:00-13:00（午休）
-            return [
-                { start: '12:00', end: '13:00', color: '#f59e0b' }
+            const config = localStorage.getItem('time-tracker-config');
+            if (config) {
+                try {
+                    const parsed = JSON.parse(config);
+                    if (parsed.breakPeriods && Array.isArray(parsed.breakPeriods)) {
+                        return parsed.breakPeriods;
+                    }
+                } catch (e) {
+                    console.error('Failed to parse break periods config', e);
+                }
+            }
+
+            // 首次使用：创建默认配置并保存
+            const defaults = [
+                { name: '午休', start: '11:30', end: '13:30', color: '#fbbf24' },
+                { name: '晚间休息', start: '17:30', end: '19:00', color: '#f87171' }
             ];
+            saveBreakPeriods(defaults);
+            return defaults;
+        }
+
+        // 保存休息时段配置
+        function saveBreakPeriods(periods) {
+            const config = { breakPeriods: periods };
+            localStorage.setItem('time-tracker-config', JSON.stringify(config));
+        }
+
+        // 计算时间段与休息时段的重叠毫秒数
+        function calculateOverlap(startTime, endTime, breakStart, breakEnd) {
+            const segmentDate = new Date(startTime);
+            const year = segmentDate.getFullYear();
+            const month = segmentDate.getMonth();
+            const day = segmentDate.getDate();
+
+            const [breakStartHours, breakStartMinutes] = breakStart.split(':').map(Number);
+            const [breakEndHours, breakEndMinutes] = breakEnd.split(':').map(Number);
+
+            const breakStartTime = new Date(year, month, day, breakStartHours, breakStartMinutes).getTime();
+            let breakEndTime = new Date(year, month, day, breakEndHours, breakEndMinutes).getTime();
+
+            // 处理跨天休息时段
+            if (breakEndTime <= breakStartTime) {
+                breakEndTime += 24 * 60 * 60 * 1000;
+            }
+
+            const overlapStart = Math.max(startTime, breakStartTime);
+            const overlapEnd = Math.min(endTime, breakEndTime);
+
+            return Math.max(0, overlapEnd - overlapStart);
+        }
+
+        // 计算时间段的有效时长（扣除休息重叠）
+        function calculateSegmentEffectiveDuration(segment, breakPeriods) {
+            if (!segment.endTime) {
+                segment.effectiveDuration = segment.rawDuration || 0;
+                segment.breakOverlapMinutes = 0;
+                return;
+            }
+
+            if (!breakPeriods) {
+                breakPeriods = getBreakPeriods();
+            }
+
+            let totalOverlapMs = 0;
+            breakPeriods.forEach(bp => {
+                const overlap = calculateOverlap(segment.startTime, segment.endTime, bp.start, bp.end);
+                totalOverlapMs += overlap;
+            });
+
+            segment.breakOverlapMinutes = Math.floor(totalOverlapMs / (60 * 1000));
+            segment.effectiveDuration = Math.max(0, (segment.rawDuration || 0) - totalOverlapMs);
+        }
+
+        // 重新计算所有任务的有效时长
+        function recalculateAllTasksEffectiveDuration() {
+            const breakPeriods = getBreakPeriods();
+            todayTasks.forEach(task => {
+                task.segments.forEach(segment => {
+                    if (segment.endTime !== null) {
+                        segment.rawDuration = segment.endTime - segment.startTime;
+                        calculateSegmentEffectiveDuration(segment, breakPeriods);
+                    }
+                });
+                updateTaskTotals(task);
+            });
         }
 
         // 时间字符串转换为分钟数
@@ -1579,7 +1764,7 @@
                 // 重新计算 rawDuration 和 effectiveDuration
                 if (segment.endTime !== null) {
                     segment.rawDuration = segment.endTime - segment.startTime;
-                    segment.effectiveDuration = segment.rawDuration;
+                    calculateSegmentEffectiveDuration(segment);
                 }
 
                 // 更新任务总计
@@ -1916,7 +2101,7 @@
             const newSegment = createSegment(startTime);
             newSegment.endTime = endTime;
             newSegment.rawDuration = endTime - startTime;
-            newSegment.effectiveDuration = endTime - startTime;
+            calculateSegmentEffectiveDuration(newSegment);
 
             task.segments.push(newSegment);
             updateTaskTotals(task);
@@ -1969,7 +2154,7 @@
                 currentSegment.endTime = now;
                 const duration = calculateSegmentDuration(currentSegment, now);
                 currentSegment.rawDuration = duration;
-                currentSegment.effectiveDuration = duration;
+                calculateSegmentEffectiveDuration(currentSegment);
             }
 
             task.status = 'paused';
@@ -2006,7 +2191,7 @@
                     currentSegment.endTime = now;
                     const duration = calculateSegmentDuration(currentSegment, now);
                     currentSegment.rawDuration = duration;
-                    currentSegment.effectiveDuration = duration;
+                    calculateSegmentEffectiveDuration(currentSegment);
                 }
                 stopTaskTimer(task.id);
             }
@@ -2285,12 +2470,177 @@
             updateDashboardStats(tasks);
         }
 
+        // ----- 渲染设置视图 (V2-008) -----
+        function renderSettingsView() {
+            const container = document.getElementById('break-periods-list');
+            if (!container) return;
+
+            const breakPeriods = getBreakPeriods();
+
+            let html = '';
+            if (breakPeriods.length === 0) {
+                html = '<div style="text-align:center;color:var(--text-secondary);padding:20px;">暂无休息时段配置</div>';
+            } else {
+                breakPeriods.forEach((period, index) => {
+                    html += buildBreakPeriodItemHTML(period, index);
+                });
+            }
+
+            container.innerHTML = html;
+            bindSettingsEvents();
+        }
+
+        function buildBreakPeriodItemHTML(period, index) {
+            return `
+                <div class="break-period-item" data-break-index="${index}">
+                    <div class="break-period-field">
+                        <label>名称</label>
+                        <input type="text" data-break-name="${index}" value="${escapeHtml(period.name || '')}" placeholder="例如：午休">
+                    </div>
+                    <div class="break-period-field">
+                        <label>开始时间</label>
+                        <input type="time" data-break-start="${index}" value="${period.start || '12:00'}">
+                    </div>
+                    <div class="break-period-field">
+                        <label>结束时间</label>
+                        <input type="time" data-break-end="${index}" value="${period.end || '13:00'}">
+                    </div>
+                    <div class="break-period-field">
+                        <label>颜色</label>
+                        <input type="color" data-break-color="${index}" value="${period.color || '#f59e0b'}">
+                    </div>
+                    <button class="break-period-delete-btn" data-delete-break="${index}" title="删除">×</button>
+                </div>
+            `;
+        }
+
+        function bindSettingsEvents() {
+            // 添加休息时段按钮
+            const addBtn = document.getElementById('btn-add-break-period');
+            if (addBtn) {
+                addBtn.onclick = addBreakPeriod;
+            }
+
+            // 保存设置按钮
+            const saveBtn = document.getElementById('btn-save-settings');
+            if (saveBtn) {
+                saveBtn.onclick = saveSettings;
+            }
+
+            // 返回 Dashboard 按钮
+            const backBtn = document.getElementById('btn-back-to-dashboard');
+            if (backBtn) {
+                backBtn.onclick = function() {
+                    switchView('dashboard');
+                };
+            }
+
+            // 删除休息时段按钮
+            const deleteBtns = document.querySelectorAll('[data-delete-break]');
+            deleteBtns.forEach(btn => {
+                btn.onclick = function() {
+                    const index = parseInt(this.dataset.deleteBreak, 10);
+                    deleteBreakPeriod(index);
+                };
+            });
+        }
+
+        function addBreakPeriod() {
+            const container = document.getElementById('break-periods-list');
+            if (!container) return;
+
+            const breakPeriods = getBreakPeriods();
+            breakPeriods.push({ name: '', start: '12:00', end: '13:00', color: '#f59e0b' });
+
+            const index = breakPeriods.length - 1;
+            const html = buildBreakPeriodItemHTML(breakPeriods[index], index);
+
+            // 如果之前是空状态，清空容器
+            if (breakPeriods.length === 1) {
+                container.innerHTML = '';
+            }
+
+            container.insertAdjacentHTML('beforeend', html);
+            bindSettingsEvents();
+        }
+
+        function deleteBreakPeriod(index) {
+            const container = document.getElementById('break-periods-list');
+            if (!container) return;
+
+            // 收集当前所有输入的值
+            const items = container.querySelectorAll('.break-period-item');
+            const breakPeriods = [];
+            items.forEach((item, i) => {
+                if (i === index) return; // 跳过要删除的项
+                const nameInput = item.querySelector('[data-break-name]');
+                const startInput = item.querySelector('[data-break-start]');
+                const endInput = item.querySelector('[data-break-end]');
+                const colorInput = item.querySelector('[data-break-color]');
+                breakPeriods.push({
+                    name: nameInput ? nameInput.value : '',
+                    start: startInput ? startInput.value : '12:00',
+                    end: endInput ? endInput.value : '13:00',
+                    color: colorInput ? colorInput.value : '#f59e0b'
+                });
+            });
+
+            // 重新渲染
+            let html = '';
+            if (breakPeriods.length === 0) {
+                html = '<div style="text-align:center;color:var(--text-secondary);padding:20px;">暂无休息时段配置</div>';
+            } else {
+                breakPeriods.forEach((period, i) => {
+                    html += buildBreakPeriodItemHTML(period, i);
+                });
+            }
+            container.innerHTML = html;
+            bindSettingsEvents();
+        }
+
+        function saveSettings() {
+            const container = document.getElementById('break-periods-list');
+            if (!container) return;
+
+            const items = container.querySelectorAll('.break-period-item');
+            const breakPeriods = [];
+
+            items.forEach((item, index) => {
+                const nameInput = item.querySelector(`[data-break-name="${index}"]`);
+                const startInput = item.querySelector(`[data-break-start="${index}"]`);
+                const endInput = item.querySelector(`[data-break-end="${index}"]`);
+                const colorInput = item.querySelector(`[data-break-color="${index}"]`);
+
+                const name = nameInput ? nameInput.value.trim() : '';
+                const start = startInput ? startInput.value : '';
+                const end = endInput ? endInput.value : '';
+                const color = colorInput ? colorInput.value : '#f59e0b';
+
+                if (name && start && end) {
+                    breakPeriods.push({ name, start, end, color });
+                }
+            });
+
+            saveBreakPeriods(breakPeriods);
+
+            // 重新计算所有任务的有效时长
+            recalculateAllTasksEffectiveDuration();
+
+            // 刷新 Dashboard 显示
+            todayTasks.forEach(task => renderTaskCard(task));
+            updateDashboardStats();
+            updateActiveTaskBanner();
+
+            alert('设置已保存');
+        }
+
         // ----- 视图切换 -----
         function switchView(viewName) {
             const dashboardView = document.getElementById('active-task-banner');
             const statsContainer = document.getElementById('stats-container');
             const tasksSection = document.getElementById('dashboard-tasks-section');
             const historyView = document.getElementById('history-view');
+            const settingsView = document.getElementById('settings-view');
             const headerTitle = document.getElementById('header-title');
             const headerDate = document.getElementById('header-date');
 
@@ -2303,6 +2653,9 @@
             [navDashboard, navToday, navHistory, navSettings].forEach(nav => {
                 if (nav) nav.classList.remove('active');
             });
+
+            // 隐藏所有视图
+            if (settingsView) settingsView.style.display = 'none';
 
             if (viewName === 'dashboard') {
                 // 显示 Dashboard 视图
@@ -2348,8 +2701,18 @@
                 const selectedDate = datePicker ? datePicker.value : getDefaultHistoryDate();
                 renderHistoryView(selectedDate);
             } else if (viewName === 'settings') {
-                // 设置视图（暂留接口）
+                // 显示设置视图
+                if (dashboardView) dashboardView.style.display = 'none';
+                if (statsContainer) statsContainer.style.display = 'none';
+                if (tasksSection) tasksSection.style.display = 'none';
+                if (historyView) historyView.style.display = 'none';
+                if (settingsView) settingsView.style.display = '';
+                if (headerTitle) headerTitle.textContent = '设置';
+                if (headerDate) headerDate.style.display = 'none';
+
                 if (navSettings) navSettings.classList.add('active');
+
+                renderSettingsView();
             }
         }
 
@@ -2972,6 +3335,129 @@
                 console.error('⚠️ 存在失败的测试，请检查实现！');
             } else {
                 console.log('✅ 所有 V2-007 测试通过！');
+            }
+        })();
+
+        // ==========================================
+        // V2-008: 休息时段设置与扣除逻辑自测代码
+        // ==========================================
+        (function runV2008Tests() {
+            console.log('=== V2-008 休息时段设置与扣除逻辑自测开始 ===');
+            let passCount = 0;
+            let failCount = 0;
+
+            function test(name, condition) {
+                if (condition) {
+                    console.log(`  [PASS] ${name}`);
+                    passCount++;
+                } else {
+                    console.error(`  [FAIL] ${name}`);
+                    failCount++;
+                }
+            }
+
+            // 清理之前的测试配置
+            localStorage.removeItem('time-tracker-config');
+
+            // AC1: getBreakPeriods 返回默认休息时段
+            console.log('\n--- AC1: 默认休息时段测试 ---');
+            const defaultPeriods = getBreakPeriods();
+            test('AC1: getBreakPeriods 返回数组', Array.isArray(defaultPeriods));
+            test('AC1: 默认有2个休息时段', defaultPeriods.length === 2);
+            test('AC1: 第一个时段名称是午休', defaultPeriods[0].name === '午休');
+            test('AC1: 午休开始时间是11:30', defaultPeriods[0].start === '11:30');
+            test('AC1: 午休结束时间是13:30', defaultPeriods[0].end === '13:30');
+            test('AC1: 午休颜色是#fbbf24', defaultPeriods[0].color === '#fbbf24');
+            test('AC1: 第二个时段名称是晚间休息', defaultPeriods[1].name === '晚间休息');
+            test('AC1: 晚间休息开始时间是17:30', defaultPeriods[1].start === '17:30');
+            test('AC1: 晚间休息结束时间是19:00', defaultPeriods[1].end === '19:00');
+            test('AC1: 晚间休息颜色是#f87171', defaultPeriods[1].color === '#f87171');
+
+            // AC2: saveBreakPeriods 和 getBreakPeriods 持久化
+            console.log('\n--- AC2: 休息时段持久化测试 ---');
+            const customPeriods = [
+                { name: '测试休息', start: '10:00', end: '10:30', color: '#ff0000' }
+            ];
+            saveBreakPeriods(customPeriods);
+            const loadedPeriods = getBreakPeriods();
+            test('AC2: 保存后读取数量一致', loadedPeriods.length === 1);
+            test('AC2: 保存后读取名称一致', loadedPeriods[0].name === '测试休息');
+            test('AC2: 保存后读取时间一致', loadedPeriods[0].start === '10:00' && loadedPeriods[0].end === '10:30');
+            test('AC2: 保存后读取颜色一致', loadedPeriods[0].color === '#ff0000');
+
+            // 恢复默认
+            localStorage.removeItem('time-tracker-config');
+
+            // AC3: calculateOverlap 计算重叠
+            console.log('\n--- AC3: 重叠计算测试 ---');
+            test('AC3: calculateOverlap 函数存在', typeof calculateOverlap === 'function');
+            const segStart = new Date('2026-04-21T09:00:00').getTime();
+            const segEnd = new Date('2026-04-21T12:00:00').getTime();
+            const overlap1 = calculateOverlap(segStart, segEnd, '11:30', '13:30');
+            test('AC3: 09:00-12:00 与 11:30-13:30 重叠30分钟', overlap1 === 30 * 60 * 1000);
+
+            const overlap2 = calculateOverlap(segStart, segEnd, '13:00', '14:00');
+            test('AC3: 09:00-12:00 与 13:00-14:00 无重叠', overlap2 === 0);
+
+            const overlap3 = calculateOverlap(segStart, segEnd, '08:00', '10:00');
+            test('AC3: 09:00-12:00 与 08:00-10:00 重叠1小时', overlap3 === 60 * 60 * 1000);
+
+            // AC4: calculateSegmentEffectiveDuration 扣除休息
+            console.log('\n--- AC4: 有效时长计算测试 ---');
+            test('AC4: calculateSegmentEffectiveDuration 函数存在', typeof calculateSegmentEffectiveDuration === 'function');
+
+            const bp = [
+                { name: '午休', start: '11:30', end: '13:30', color: '#fbbf24' }
+            ];
+            const testSegment = createSegment(new Date('2026-04-21T09:00:00').getTime());
+            testSegment.endTime = new Date('2026-04-21T12:00:00').getTime();
+            testSegment.rawDuration = testSegment.endTime - testSegment.startTime; // 3小时
+            calculateSegmentEffectiveDuration(testSegment, bp);
+            test('AC4: 有效时长为2.5小时', testSegment.effectiveDuration === 2.5 * 60 * 60 * 1000);
+            test('AC4: 休息重叠为30分钟', testSegment.breakOverlapMinutes === 30);
+
+            // AC5: updateTaskTotals 使用有效时长
+            console.log('\n--- AC5: 任务总计更新测试 ---');
+            const testTask = createTask('V2-008测试任务');
+            testTask.segments = [testSegment];
+            updateTaskTotals(testTask);
+            test('AC5: totalRawDuration 正确', testTask.totalRawDuration === 3 * 60 * 60 * 1000);
+            test('AC5: totalEffectiveDuration 正确', testTask.totalEffectiveDuration === 2.5 * 60 * 60 * 1000);
+
+            // AC6: 设置视图函数
+            console.log('\n--- AC6: 设置视图函数测试 ---');
+            test('AC6: renderSettingsView 函数存在', typeof renderSettingsView === 'function');
+            test('AC6: buildBreakPeriodItemHTML 函数存在', typeof buildBreakPeriodItemHTML === 'function');
+            test('AC6: saveSettings 函数存在', typeof saveSettings === 'function');
+            test('AC6: addBreakPeriod 函数存在', typeof addBreakPeriod === 'function');
+            test('AC6: deleteBreakPeriod 函数存在', typeof deleteBreakPeriod === 'function');
+            test('AC6: recalculateAllTasksEffectiveDuration 函数存在', typeof recalculateAllTasksEffectiveDuration === 'function');
+            test('AC6: saveBreakPeriods 函数存在', typeof saveBreakPeriods === 'function');
+
+            // AC7: buildBreakOverlays 使用 getBreakPeriods
+            console.log('\n--- AC7: 进度条休息叠加测试 ---');
+            test('AC7: buildBreakOverlays 函数存在', typeof buildBreakOverlays === 'function');
+            localStorage.removeItem('time-tracker-config');
+            const overlaysHTML = buildBreakOverlays(testSegment);
+            test('AC7: 生成 break-overlay 元素', overlaysHTML.includes('break-overlay'));
+
+            // AC8: calculateStats 基于 effectiveDuration
+            console.log('\n--- AC8: Dashboard 统计测试 ---');
+            todayTasks = [testTask];
+            const stats = calculateStats();
+            test('AC8: 统计基于有效时长', Math.abs(stats.totalHours - 2.5) < 0.01);
+            test('AC8: 人天计算正确', Math.abs(stats.personDays - (2.5 * 60 / 480)) < 0.01);
+
+            // 清理测试数据
+            todayTasks = [];
+            localStorage.removeItem('time-tracker-config');
+            localStorage.removeItem(todayKey());
+
+            console.log(`\n=== V2-008 自测结束: ${passCount} 通过, ${failCount} 失败 ===`);
+            if (failCount > 0) {
+                console.error('⚠️ 存在失败的测试，请检查实现！');
+            } else {
+                console.log('✅ 所有 V2-008 测试通过！');
             }
         })();
 
