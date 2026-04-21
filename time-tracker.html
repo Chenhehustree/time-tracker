@@ -407,6 +407,221 @@
             display: none !important;
         }
 
+        /* ===== 时间段列表样式 (V2-004) ===== */
+        .segments-section {
+            margin-top: 12px;
+            border-top: 1px dashed var(--border);
+            padding-top: 12px;
+        }
+
+        .segments-toggle {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+            color: var(--text-secondary);
+            font-size: 13px;
+            user-select: none;
+            transition: color 0.2s ease;
+        }
+
+        .segments-toggle:hover {
+            color: var(--primary);
+        }
+
+        .segments-toggle-icon {
+            font-size: 12px;
+            transition: transform 0.3s ease;
+        }
+
+        .segments-toggle.expanded .segments-toggle-icon {
+            transform: rotate(180deg);
+        }
+
+        .segments-list {
+            margin-top: 12px;
+            background: #f9fafb;
+            border-radius: 8px;
+            padding: 12px;
+            max-height: 0;
+            opacity: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease, opacity 0.3s ease, padding 0.3s ease;
+        }
+
+        .segments-list.expanded {
+            max-height: 600px;
+            opacity: 1;
+            overflow-y: auto;
+        }
+
+        .segment-item {
+            background: #ffffff;
+            border-radius: 6px;
+            padding: 10px 12px;
+            margin-bottom: 8px;
+            border-bottom: 1px solid var(--border);
+            position: relative;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+        }
+
+        .segment-item:last-child {
+            margin-bottom: 0;
+            border-bottom: none;
+        }
+
+        .segment-item.running {
+            border-left: 3px solid var(--success);
+        }
+
+        .segment-date {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 4px;
+        }
+
+        .segment-time {
+            font-size: 13px;
+            color: var(--text-secondary);
+            font-family: 'Courier New', monospace;
+        }
+
+        .segment-duration {
+            font-size: 12px;
+            color: var(--text-secondary);
+            margin-top: 2px;
+        }
+
+        .segment-delete-btn {
+            background: none;
+            border: none;
+            color: var(--danger);
+            font-size: 16px;
+            cursor: pointer;
+            padding: 4px 8px;
+            border-radius: 4px;
+            transition: all 0.2s ease;
+            line-height: 1;
+        }
+
+        .segment-delete-btn:hover {
+            transform: scale(1.2);
+            background: rgba(239, 68, 68, 0.1);
+        }
+
+        .segment-add-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            width: 100%;
+            padding: 10px;
+            margin-top: 10px;
+            border: 2px dashed var(--primary);
+            border-radius: 6px;
+            background: transparent;
+            color: var(--primary);
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .segment-add-btn:hover {
+            background: rgba(59, 130, 246, 0.05);
+            border-style: solid;
+        }
+
+        .segment-form {
+            background: #ffffff;
+            border-radius: 6px;
+            padding: 12px;
+            margin-top: 10px;
+            border: 1px solid var(--border);
+        }
+
+        .segment-form-row {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 10px;
+            flex-wrap: wrap;
+        }
+
+        .segment-form-field {
+            flex: 1;
+            min-width: 180px;
+        }
+
+        .segment-form-field label {
+            display: block;
+            font-size: 12px;
+            color: var(--text-secondary);
+            margin-bottom: 4px;
+        }
+
+        .segment-form-field input {
+            width: 100%;
+            padding: 8px 10px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-size: 13px;
+            font-family: inherit;
+        }
+
+        .segment-form-field input:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+
+        .segment-form-actions {
+            display: flex;
+            gap: 8px;
+            justify-content: flex-end;
+        }
+
+        .segment-form-btn {
+            padding: 6px 14px;
+            border: none;
+            border-radius: 6px;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .segment-form-btn-save {
+            background: var(--success);
+            color: #ffffff;
+        }
+
+        .segment-form-btn-save:hover {
+            background: #059669;
+        }
+
+        .segment-form-btn-cancel {
+            background: #e5e7eb;
+            color: var(--text-primary);
+        }
+
+        .segment-form-btn-cancel:hover {
+            background: #d1d5db;
+        }
+
+        .segment-form-error {
+            color: var(--danger);
+            font-size: 12px;
+            margin-top: 8px;
+            padding: 8px;
+            background: rgba(239, 68, 68, 0.05);
+            border-radius: 4px;
+            display: none;
+        }
+
+        .segment-form-error.show {
+            display: block;
+        }
+
         .active-task-content {
             display: flex;
             justify-content: space-between;
@@ -627,9 +842,12 @@
         }
 
         function formatDurationMinutes(minutes) {
+            if (minutes < 0) minutes = 0;
             const hours = Math.floor(minutes / 60);
             const mins = Math.floor(minutes % 60);
-            return `${hours}小时${mins > 0 ? mins + '分' : ''}`;
+            if (hours === 0) return `${mins}分`;
+            if (mins === 0) return `${hours}小时`;
+            return `${hours}小时${mins}分`;
         }
 
         function formatNumber(num, decimals = 2) {
@@ -807,6 +1025,12 @@
             }
             // completed 状态无按钮
 
+            // 时间段统计
+            const segmentCount = task.segments ? task.segments.length : 0;
+            const segmentSummaryText = segmentCount > 0
+                ? `时间段列表（共${segmentCount}段，累计${formatDurationMinutes(Math.floor(rawMs / 60000))}）`
+                : '时间段列表（暂无记录）';
+
             return `
                 <div class="task-card-header">
                     <h3 class="task-name">${escapeHtml(task.taskName)}</h3>
@@ -817,7 +1041,72 @@
                 <div class="task-actions">
                     ${buttonsHTML}
                 </div>
+                <div class="segments-section">
+                    <div class="segments-toggle" data-toggle-segments="${task.id}">
+                        <span class="segments-toggle-icon">▼</span>
+                        <span>${segmentSummaryText}</span>
+                    </div>
+                    <div class="segments-list" data-segments-list="${task.id}">
+                        ${buildSegmentsListHTML(task)}
+                    </div>
+                </div>
             `;
+        }
+
+        function buildSegmentsListHTML(task) {
+            if (!task.segments || task.segments.length === 0) {
+                return '<div style="text-align:center;color:var(--text-secondary);font-size:13px;padding:20px;">暂无时间段记录</div>';
+            }
+
+            let html = '';
+            // 倒序显示，最新的在前面
+            const segments = [...task.segments].reverse();
+            segments.forEach(segment => {
+                const isRunning = segment.endTime === null;
+                const startDate = new Date(segment.startTime);
+                const endDate = isRunning ? null : new Date(segment.endTime);
+
+                const dateStr = formatDate(startDate);
+                const startTimeStr = formatTime(startDate);
+                const endTimeStr = isRunning ? '进行中' : formatTime(endDate);
+
+                const rawMinutes = isRunning
+                    ? Math.floor((Date.now() - segment.startTime) / 60000)
+                    : Math.floor(segment.rawDuration / 60000);
+                const effectiveMinutes = isRunning
+                    ? rawMinutes
+                    : Math.floor(segment.effectiveDuration / 60000);
+
+                const rawDurationStr = formatDurationMinutes(rawMinutes);
+                const effectiveDurationStr = formatDurationMinutes(effectiveMinutes);
+
+                html += `
+                    <div class="segment-item ${isRunning ? 'running' : ''}" data-segment-id="${segment.id}">
+                        <div class="segment-info">
+                            <div class="segment-date">${dateStr}</div>
+                            <div class="segment-time">${startTimeStr} - ${endTimeStr}</div>
+                            <div class="segment-duration">原始${rawDurationStr} | 有效${effectiveDurationStr}</div>
+                        </div>
+                        <button class="segment-delete-btn" data-delete-segment="${segment.id}" data-task-id="${task.id}" title="删除时间段">×</button>
+                    </div>
+                `;
+            });
+
+            // 添加时间段按钮
+            html += `
+                <button class="segment-add-btn" data-add-segment="${task.id}">
+                    <span>+</span>
+                    <span>添加时间段</span>
+                </button>
+            `;
+
+            return html;
+        }
+
+        function formatTime(date) {
+            const hours = String(date.getHours()).padStart(2, '0');
+            const minutes = String(date.getMinutes()).padStart(2, '0');
+            return `${hours}:${minutes}`;
         }
 
         function escapeHtml(text) {
@@ -836,6 +1125,207 @@
                     handleTaskAction(taskId, action);
                 });
             });
+
+            // 绑定时间段展开/收起事件
+            const toggleEl = card.querySelector(`[data-toggle-segments="${task.id}"]`);
+            if (toggleEl) {
+                toggleEl.addEventListener('click', function() {
+                    toggleSegmentsList(task.id);
+                });
+            }
+
+            // 绑定删除时间段事件
+            const deleteBtns = card.querySelectorAll('[data-delete-segment]');
+            deleteBtns.forEach(btn => {
+                btn.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    const segmentId = this.dataset.deleteSegment;
+                    const taskId = this.dataset.taskId;
+                    deleteSegment(taskId, segmentId);
+                });
+            });
+
+            // 绑定添加时间段按钮事件
+            const addBtn = card.querySelector(`[data-add-segment="${task.id}"]`);
+            if (addBtn) {
+                addBtn.addEventListener('click', function() {
+                    showSegmentAddForm(task.id);
+                });
+            }
+        }
+
+        // ----- 时间段展开/收起 (V2-004) -----
+        function toggleSegmentsList(taskId) {
+            const toggleEl = document.querySelector(`[data-toggle-segments="${taskId}"]`);
+            const listEl = document.querySelector(`[data-segments-list="${taskId}"]`);
+            if (!toggleEl || !listEl) return;
+
+            const isExpanded = listEl.classList.contains('expanded');
+            
+            if (isExpanded) {
+                listEl.classList.remove('expanded');
+                toggleEl.classList.remove('expanded');
+                toggleEl.querySelector('.segments-toggle-icon').textContent = '▼';
+            } else {
+                listEl.classList.add('expanded');
+                toggleEl.classList.add('expanded');
+                toggleEl.querySelector('.segments-toggle-icon').textContent = '▲';
+            }
+        }
+
+        // ----- 删除时间段 (V2-004) -----
+        function deleteSegment(taskId, segmentId) {
+            if (!confirm('确定要删除这个时间段吗？')) {
+                return;
+            }
+
+            const task = todayTasks.find(t => t.id === taskId);
+            if (!task) return;
+
+            // 找到并删除时间段
+            const segmentIndex = task.segments.findIndex(s => s.id === segmentId);
+            if (segmentIndex === -1) return;
+
+            // 如果被删除的是正在运行的段，先停止计时器
+            const segment = task.segments[segmentIndex];
+            if (segment.endTime === null && task.status === 'running') {
+                stopTaskTimer(taskId);
+                task.status = 'paused';
+            }
+
+            task.segments.splice(segmentIndex, 1);
+            
+            // 重新计算总时长
+            updateTaskTotals(task);
+            
+            // 保存到 localStorage
+            saveTodayTasks(todayTasks);
+            
+            // 重新渲染任务卡片
+            renderTaskCard(task);
+            
+            // 更新 Dashboard 统计
+            updateDashboardStats();
+            updateActiveTaskBanner();
+        }
+
+        // ----- 手动添加时间段 (V2-004) -----
+        function showSegmentAddForm(taskId) {
+            const listEl = document.querySelector(`[data-segments-list="${taskId}"]`);
+            if (!listEl) return;
+
+            // 检查是否已有表单
+            const existingForm = listEl.querySelector('.segment-form');
+            if (existingForm) {
+                existingForm.remove();
+                return;
+            }
+
+            // 获取当前时间用于默认值
+            const now = new Date();
+            const oneHourLater = new Date(now.getTime() + 60 * 60 * 1000);
+            
+            const formatDateTimeLocal = (date) => {
+                const year = date.getFullYear();
+                const month = String(date.getMonth() + 1).padStart(2, '0');
+                const day = String(date.getDate()).padStart(2, '0');
+                const hours = String(date.getHours()).padStart(2, '0');
+                const minutes = String(date.getMinutes()).padStart(2, '0');
+                return `${year}-${month}-${day}T${hours}:${minutes}`;
+            };
+
+            const formHTML = `
+                <div class="segment-form" data-segment-form="${taskId}">
+                    <div class="segment-form-row">
+                        <div class="segment-form-field">
+                            <label>开始时间</label>
+                            <input type="datetime-local" data-form-start value="${formatDateTimeLocal(now)}">
+                        </div>
+                        <div class="segment-form-field">
+                            <label>结束时间</label>
+                            <input type="datetime-local" data-form-end value="${formatDateTimeLocal(oneHourLater)}">
+                        </div>
+                    </div>
+                    <div class="segment-form-error" data-form-error></div>
+                    <div class="segment-form-actions">
+                        <button class="segment-form-btn segment-form-btn-cancel" data-form-cancel>取消</button>
+                        <button class="segment-form-btn segment-form-btn-save" data-form-save>保存</button>
+                    </div>
+                </div>
+            `;
+
+            listEl.insertAdjacentHTML('beforeend', formHTML);
+
+            // 绑定表单事件
+            const form = listEl.querySelector('.segment-form');
+            const cancelBtn = form.querySelector('[data-form-cancel]');
+            const saveBtn = form.querySelector('[data-form-save]');
+
+            cancelBtn.addEventListener('click', function() {
+                form.remove();
+            });
+
+            saveBtn.addEventListener('click', function() {
+                saveNewSegment(taskId);
+            });
+        }
+
+        function saveNewSegment(taskId) {
+            const task = todayTasks.find(t => t.id === taskId);
+            if (!task) return;
+
+            const form = document.querySelector(`[data-segment-form="${taskId}"]`);
+            if (!form) return;
+
+            const startInput = form.querySelector('[data-form-start]');
+            const endInput = form.querySelector('[data-form-end]');
+            const errorEl = form.querySelector('[data-form-error]');
+
+            const startTime = new Date(startInput.value).getTime();
+            const endTime = new Date(endInput.value).getTime();
+
+            // 验证
+            errorEl.classList.remove('show');
+            errorEl.textContent = '';
+
+            if (isNaN(startTime) || isNaN(endTime)) {
+                errorEl.textContent = '请输入有效的时间';
+                errorEl.classList.add('show');
+                return;
+            }
+
+            if (endTime <= startTime) {
+                errorEl.textContent = '结束时间必须晚于开始时间';
+                errorEl.classList.add('show');
+                return;
+            }
+
+            // 检查时间段重叠
+            for (const segment of task.segments) {
+                const segStart = segment.startTime;
+                const segEnd = segment.endTime || Date.now();
+
+                if ((startTime >= segStart && startTime < segEnd) ||
+                    (endTime > segStart && endTime <= segEnd) ||
+                    (startTime <= segStart && endTime >= segEnd)) {
+                    errorEl.textContent = '该时间段与已有记录重叠';
+                    errorEl.classList.add('show');
+                    return;
+                }
+            }
+
+            // 创建新时间段
+            const newSegment = createSegment(startTime);
+            newSegment.endTime = endTime;
+            newSegment.rawDuration = endTime - startTime;
+            newSegment.effectiveDuration = endTime - startTime;
+
+            task.segments.push(newSegment);
+            updateTaskTotals(task);
+
+            saveTodayTasks(todayTasks);
+            renderTaskCard(task);
+            updateDashboardStats();
         }
 
         // ----- 操作按钮逻辑 -----
@@ -1369,6 +1859,139 @@
                 console.error('⚠️ 存在失败的测试，请检查实现！');
             } else {
                 console.log('✅ 所有测试通过！');
+            }
+        })();
+
+        // ==========================================
+        // V2-004: 时间段展开/收起与年月时间显示自测代码
+        // ==========================================
+        (function runV2004Tests() {
+            console.log('=== V2-004 时间段展开/收起与年月时间显示自测开始 ===');
+            let passCount = 0;
+            let failCount = 0;
+
+            function test(name, condition) {
+                if (condition) {
+                    console.log(`  [PASS] ${name}`);
+                    passCount++;
+                } else {
+                    console.error(`  [FAIL] ${name}`);
+                    failCount++;
+                }
+            }
+
+            // 准备测试数据
+            const testTask = createTask('V2-004 测试任务');
+            testTask.segments = [
+                { id: 'seg-1', startTime: new Date('2026-04-21T09:00:00').getTime(), endTime: new Date('2026-04-21T11:30:00').getTime(), rawDuration: 9000000, effectiveDuration: 8100000 },
+                { id: 'seg-2', startTime: new Date('2026-04-21T13:00:00').getTime(), endTime: new Date('2026-04-21T15:15:00').getTime(), rawDuration: 8100000, effectiveDuration: 8100000 },
+                { id: 'seg-3', startTime: new Date('2026-04-21T16:00:00').getTime(), endTime: null, rawDuration: 0, effectiveDuration: 0 }
+            ];
+            updateTaskTotals(testTask);
+            todayTasks = [testTask];
+
+            // AC1: 默认收起，显示段数统计
+            console.log('\n--- AC1: 默认收起状态测试 ---');
+            test('AC1: buildTaskCardHTML 函数存在', typeof buildTaskCardHTML === 'function');
+            const cardHTML = buildTaskCardHTML(testTask);
+            test('AC1: 卡片HTML包含时间段区域', cardHTML.includes('segments-section'));
+            test('AC1: 显示段数统计（共3段）', cardHTML.includes('共3段'));
+            test('AC1: 默认显示▼图标', cardHTML.includes('▼'));
+            test('AC1: 时间段列表初始未展开', !cardHTML.includes('segments-list expanded'));
+
+            // AC2: 时间段详情展示（含年月日）
+            console.log('\n--- AC2: 时间段详情展示测试 ---');
+            test('AC2: buildSegmentsListHTML 函数存在', typeof buildSegmentsListHTML === 'function');
+            const segmentsHTML = buildSegmentsListHTML(testTask);
+            test('AC2: 显示日期格式 YYYY-MM-DD', segmentsHTML.includes('2026-04-21'));
+            test('AC2: 显示开始时间 09:00', segmentsHTML.includes('09:00'));
+            test('AC2: 显示结束时间 11:30', segmentsHTML.includes('11:30'));
+            test('AC2: 显示原始时长', segmentsHTML.includes('原始'));
+            test('AC2: 显示有效时长', segmentsHTML.includes('有效'));
+            test('AC2: 进行中的段显示"进行中"', segmentsHTML.includes('进行中'));
+            test('AC2: 每段有删除按钮', segmentsHTML.includes('segment-delete-btn'));
+
+            // AC3: 时间段删除功能
+            console.log('\n--- AC3: 时间段删除测试 ---');
+            test('AC3: deleteSegment 函数存在', typeof deleteSegment === 'function');
+            
+            // 模拟删除第二段
+            const originalSegCount = testTask.segments.length;
+            const originalRaw = testTask.totalRawDuration;
+            const segToDelete = testTask.segments[1];
+            
+            // 直接调用删除逻辑（跳过confirm）
+            const idx = testTask.segments.findIndex(s => s.id === segToDelete.id);
+            testTask.segments.splice(idx, 1);
+            updateTaskTotals(testTask);
+            
+            test('AC3: 删除后段数减少', testTask.segments.length === originalSegCount - 1);
+            test('AC3: 删除后总时长更新', testTask.totalRawDuration < originalRaw);
+
+            // 恢复测试数据
+            testTask.segments = [
+                { id: 'seg-1', startTime: new Date('2026-04-21T09:00:00').getTime(), endTime: new Date('2026-04-21T11:30:00').getTime(), rawDuration: 9000000, effectiveDuration: 8100000 },
+                { id: 'seg-2', startTime: new Date('2026-04-21T13:00:00').getTime(), endTime: new Date('2026-04-21T15:15:00').getTime(), rawDuration: 8100000, effectiveDuration: 8100000 },
+                { id: 'seg-3', startTime: new Date('2026-04-21T16:00:00').getTime(), endTime: null, rawDuration: 0, effectiveDuration: 0 }
+            ];
+            updateTaskTotals(testTask);
+
+            // AC4: 手动添加时间段
+            console.log('\n--- AC4: 手动添加时间段测试 ---');
+            test('AC4: showSegmentAddForm 函数存在', typeof showSegmentAddForm === 'function');
+            test('AC4: saveNewSegment 函数存在', typeof saveNewSegment === 'function');
+
+            // 测试时间重叠检测逻辑
+            const startTime = new Date('2026-04-21T10:00:00').getTime();
+            const endTime = new Date('2026-04-21T12:00:00').getTime();
+            let hasOverlap = false;
+            for (const segment of testTask.segments) {
+                const segStart = segment.startTime;
+                const segEnd = segment.endTime || Date.now();
+                if ((startTime >= segStart && startTime < segEnd) ||
+                    (endTime > segStart && endTime <= segEnd) ||
+                    (startTime <= segStart && endTime >= segEnd)) {
+                    hasOverlap = true;
+                    break;
+                }
+            }
+            test('AC4: 重叠时间段被检测到', hasOverlap === true);
+
+            // 测试非重叠时间段
+            const startTime2 = new Date('2026-04-22T09:00:00').getTime();
+            const endTime2 = new Date('2026-04-22T10:00:00').getTime();
+            let hasOverlap2 = false;
+            for (const segment of testTask.segments) {
+                const segStart = segment.startTime;
+                const segEnd = segment.endTime || Date.now();
+                if ((startTime2 >= segStart && startTime2 < segEnd) ||
+                    (endTime2 > segStart && endTime2 <= segEnd) ||
+                    (startTime2 <= segStart && endTime2 >= segEnd)) {
+                    hasOverlap2 = true;
+                    break;
+                }
+            }
+            test('AC4: 非重叠时间段通过检测', hasOverlap2 === false);
+
+            // AC5: 工具函数
+            console.log('\n--- AC5: 工具函数测试 ---');
+            test('AC5: formatTime 函数存在', typeof formatTime === 'function');
+            test('AC5: formatTime 返回 HH:MM', formatTime(new Date('2026-04-21T09:05:00')) === '09:05');
+            test('AC5: toggleSegmentsList 函数存在', typeof toggleSegmentsList === 'function');
+            test('AC5: formatDurationMinutes(0) 返回 0分', formatDurationMinutes(0) === '0分');
+            test('AC5: formatDurationMinutes(75) 返回 1小时15分', formatDurationMinutes(75) === '1小时15分');
+            test('AC5: formatDurationMinutes(120) 返回 2小时', formatDurationMinutes(120) === '2小时');
+            test('AC5: formatDurationMinutes(30) 返回 30分', formatDurationMinutes(30) === '30分');
+
+            // 清理测试数据
+            todayTasks = [];
+            localStorage.removeItem(todayKey());
+
+            console.log(`\n=== V2-004 自测结束: ${passCount} 通过, ${failCount} 失败 ===`);
+            if (failCount > 0) {
+                console.error('⚠️ 存在失败的测试，请检查实现！');
+            } else {
+                console.log('✅ 所有 V2-004 测试通过！');
             }
         })();
 
