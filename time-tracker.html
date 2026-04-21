@@ -1,0 +1,716 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>工作计时器</title>
+    <style>
+        /* ===== CSS 自定义属性 ===== */
+        :root {
+            --primary-color: #2563eb;
+            --primary-hover: #1d4ed8;
+            --secondary-color: #6b7280;
+            --bg-color: #ffffff;
+            --text-color: #1f2937;
+            --border-color: #e5e7eb;
+            --card-bg: #f9fafb;
+            --break-color-1: #FFD93D;
+            --break-color-2: #FF6B6B;
+            --success-color: #10b981;
+            --warning-color: #f59e0b;
+            --danger-color: #ef4444;
+            --shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            --shadow-hover: 0 4px 6px rgba(0, 0, 0, 0.1);
+            --radius: 8px;
+            --gap: 16px;
+        }
+
+        /* ===== 基础样式重置 ===== */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            line-height: 1.6;
+            padding: 20px;
+        }
+
+        /* ===== 容器布局 ===== */
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            text-align: center;
+            margin-bottom: 24px;
+            color: var(--text-color);
+            font-size: 28px;
+        }
+
+        /* ===== 区域通用样式 ===== */
+        .section {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius);
+            padding: 20px;
+            margin-bottom: var(--gap);
+            box-shadow: var(--shadow);
+        }
+
+        .section-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 16px;
+            color: var(--text-color);
+        }
+
+        /* ===== 按钮样式 ===== */
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: var(--radius);
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+        }
+
+        .btn-primary {
+            background-color: var(--primary-color);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background-color: var(--primary-hover);
+            box-shadow: var(--shadow-hover);
+        }
+
+        .btn-secondary {
+            background-color: var(--secondary-color);
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background-color: #4b5563;
+            box-shadow: var(--shadow-hover);
+        }
+
+        .btn-success {
+            background-color: var(--success-color);
+            color: white;
+        }
+
+        .btn-success:hover {
+            background-color: #059669;
+            box-shadow: var(--shadow-hover);
+        }
+
+        .btn-danger {
+            background-color: var(--danger-color);
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background-color: #dc2626;
+            box-shadow: var(--shadow-hover);
+        }
+
+        .btn-small {
+            padding: 6px 12px;
+            font-size: 12px;
+        }
+
+        /* ===== 输入框样式 ===== */
+        .input {
+            padding: 10px 12px;
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius);
+            font-size: 14px;
+            transition: border-color 0.2s ease;
+            width: 100%;
+        }
+
+        .input:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        }
+
+        /* ===== 任务输入区 ===== */
+        .task-input-section {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .task-input-section .input {
+            flex: 1;
+            min-width: 200px;
+        }
+
+        /* ===== 计时显示区 ===== */
+        .timer-display-section {
+            text-align: center;
+        }
+
+        .timer-display {
+            font-size: 64px;
+            font-weight: 700;
+            font-family: 'Courier New', monospace;
+            color: var(--primary-color);
+            letter-spacing: 4px;
+            margin: 20px 0;
+        }
+
+        /* ===== 今日记录列表区 ===== */
+        .records-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 14px;
+        }
+
+        .records-table th,
+        .records-table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .records-table th {
+            background-color: var(--card-bg);
+            font-weight: 600;
+            color: var(--secondary-color);
+        }
+
+        .records-table tr:hover {
+            background-color: #f3f4f6;
+        }
+
+        .records-table .actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        /* ===== 统计面板区 ===== */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: var(--gap);
+        }
+
+        .stat-card {
+            background: var(--bg-color);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius);
+            padding: 16px;
+            text-align: center;
+        }
+
+        .stat-label {
+            font-size: 14px;
+            color: var(--secondary-color);
+            margin-bottom: 8px;
+        }
+
+        .stat-value {
+            font-size: 32px;
+            font-weight: 700;
+            color: var(--primary-color);
+        }
+
+        .stat-unit {
+            font-size: 14px;
+            color: var(--secondary-color);
+            margin-left: 4px;
+        }
+
+        /* ===== 休息时段设置区 ===== */
+        .break-settings-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .break-setting-item {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            flex-wrap: wrap;
+            padding: 12px;
+            background: var(--bg-color);
+            border-radius: var(--radius);
+            border: 1px solid var(--border-color);
+        }
+
+        .break-color-indicator {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+
+        .break-setting-item .input {
+            width: auto;
+            flex: 1;
+            min-width: 100px;
+        }
+
+        .break-time-input {
+            width: 100px !important;
+        }
+
+        /* ===== 历史记录区 ===== */
+        .history-section {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .history-header {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .history-header .input {
+            width: auto;
+        }
+
+        /* ===== 数据操作区 ===== */
+        .data-operations {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .file-input-wrapper {
+            position: relative;
+            display: inline-block;
+        }
+
+        .file-input-wrapper input[type="file"] {
+            position: absolute;
+            left: 0;
+            top: 0;
+            opacity: 0;
+            cursor: pointer;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* ===== 响应式基础 ===== */
+        @media (max-width: 768px) {
+            body {
+                padding: 12px;
+            }
+
+            .timer-display {
+                font-size: 48px;
+            }
+
+            .task-input-section {
+                flex-direction: column;
+            }
+
+            .task-input-section .input,
+            .task-input-section .btn {
+                width: 100%;
+            }
+
+            .records-table {
+                font-size: 12px;
+            }
+
+            .records-table th,
+            .records-table td {
+                padding: 8px;
+            }
+
+            .break-setting-item {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .break-setting-item .input,
+            .break-time-input {
+                width: 100% !important;
+            }
+
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .timer-display {
+                font-size: 36px;
+                letter-spacing: 2px;
+            }
+
+            .section {
+                padding: 16px;
+            }
+
+            .data-operations {
+                flex-direction: column;
+            }
+
+            .data-operations .btn,
+            .file-input-wrapper {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>工作计时器</h1>
+
+        <!-- ===== 任务输入区 ===== -->
+        <section class="section" id="task-input-section">
+            <h2 class="section-title">任务</h2>
+            <div class="task-input-section">
+                <input type="text" 
+                       class="input" 
+                       id="task-name-input" 
+                       placeholder="请输入任务名称..."
+                       autocomplete="off">
+                <button class="btn btn-primary" id="start-stop-btn">开始计时</button>
+            </div>
+        </section>
+
+        <!-- ===== 计时显示区 ===== -->
+        <section class="section" id="timer-display-section">
+            <h2 class="section-title">当前计时</h2>
+            <div class="timer-display-section">
+                <div class="timer-display" id="timer-display">00:00</div>
+            </div>
+        </section>
+
+        <!-- ===== 今日记录列表区 ===== -->
+        <section class="section" id="records-section">
+            <h2 class="section-title">今日记录</h2>
+            <table class="records-table" id="records-table">
+                <thead>
+                    <tr>
+                        <th>任务名</th>
+                        <th>开始时间</th>
+                        <th>结束时间</th>
+                        <th>原始时长</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody id="records-tbody">
+                    <!-- 记录行将通过 JavaScript 动态添加 -->
+                </tbody>
+            </table>
+        </section>
+
+        <!-- ===== 统计面板区 ===== -->
+        <section class="section" id="stats-section">
+            <h2 class="section-title">今日统计</h2>
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-label">总在线时间</div>
+                    <div class="stat-value">
+                        <span id="total-online-time">0</span>
+                        <span class="stat-unit">小时</span>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">有效工时</div>
+                    <div class="stat-value">
+                        <span id="effective-time">0</span>
+                        <span class="stat-unit">小时</span>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">人天换算</div>
+                    <div class="stat-value">
+                        <span id="person-days">0</span>
+                        <span class="stat-unit">天</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ===== 休息时段设置区 ===== -->
+        <section class="section" id="break-settings-section">
+            <h2 class="section-title">休息时段设置</h2>
+            <div class="break-settings-list" id="break-settings-list">
+                <!-- 午休 -->
+                <div class="break-setting-item">
+                    <div class="break-color-indicator" style="background-color: #FFD93D;"></div>
+                    <input type="text" class="input" value="午休" placeholder="时段名称">
+                    <input type="time" class="input break-time-input" value="11:30">
+                    <span>至</span>
+                    <input type="time" class="input break-time-input" value="13:30">
+                    <button class="btn btn-small btn-danger">删除</button>
+                </div>
+                <!-- 晚间休息 -->
+                <div class="break-setting-item">
+                    <div class="break-color-indicator" style="background-color: #FF6B6B;"></div>
+                    <input type="text" class="input" value="晚间休息" placeholder="时段名称">
+                    <input type="time" class="input break-time-input" value="17:30">
+                    <span>至</span>
+                    <input type="time" class="input break-time-input" value="19:00">
+                    <button class="btn btn-small btn-danger">删除</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- ===== 历史记录区 ===== -->
+        <section class="section" id="history-section">
+            <h2 class="section-title">历史记录</h2>
+            <div class="history-section">
+                <div class="history-header">
+                    <label for="history-date">选择日期：</label>
+                    <input type="date" class="input" id="history-date">
+                    <button class="btn btn-secondary" id="load-history-btn">加载记录</button>
+                </div>
+                <table class="records-table" id="history-table">
+                    <thead>
+                        <tr>
+                            <th>任务名</th>
+                            <th>开始时间</th>
+                            <th>结束时间</th>
+                            <th>原始时长</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="history-tbody">
+                        <!-- 历史记录将通过 JavaScript 动态加载 -->
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- ===== 数据操作区 ===== -->
+        <section class="section" id="data-operations-section">
+            <h2 class="section-title">数据管理</h2>
+            <div class="data-operations">
+                <button class="btn btn-secondary" id="export-btn">导出数据</button>
+                <div class="file-input-wrapper">
+                    <button class="btn btn-secondary">导入数据</button>
+                    <input type="file" id="import-file" accept=".json">
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <!-- ===== JavaScript 区域 ===== -->
+    <script>
+        /**
+         * 工作计时器应用 - JavaScript 主程序
+         * 
+         * 功能模块说明：
+         * 
+         * 1. 计时器引擎 (Timer Engine)
+         *    - 开始/停止计时逻辑
+         *    - 时间计算与格式化
+         *    - 休息时段扣除
+         *    - 人天换算 (1人天 = 8小时)
+         * 
+         * 2. UI 控制器 (UI Controller)
+         *    - 更新计时显示
+         *    - 渲染记录列表
+         *    - 更新统计面板
+         *    - 处理用户交互
+         * 
+         * 3. 数据存储层 (Storage Layer)
+         *    - localStorage 读写
+         *    - 数据序列化/反序列化
+         *    - JSON 导出/导入
+         * 
+         * 4. 历史记录管理 (History Manager)
+         *    - 按日期查询记录
+         *    - 历史数据展示
+         * 
+         * 注意：当前为骨架版本，实际功能将在后续 TASK 中逐步实现
+         */
+
+        // ========================================
+        // 常量定义
+        // ========================================
+        const HOURS_PER_DAY = 8; // 人天换算基数
+
+        // ========================================
+        // DOM 元素引用 (占位)
+        // ========================================
+        // 任务输入区
+        // const taskNameInput = document.getElementById('task-name-input');
+        // const startStopBtn = document.getElementById('start-stop-btn');
+
+        // 计时显示区
+        // const timerDisplay = document.getElementById('timer-display');
+
+        // 今日记录列表区
+        // const recordsTable = document.getElementById('records-table');
+        // const recordsTbody = document.getElementById('records-tbody');
+
+        // 统计面板区
+        // const totalOnlineTimeEl = document.getElementById('total-online-time');
+        // const effectiveTimeEl = document.getElementById('effective-time');
+        // const personDaysEl = document.getElementById('person-days');
+
+        // 休息时段设置区
+        // const breakSettingsList = document.getElementById('break-settings-list');
+
+        // 历史记录区
+        // const historyDateInput = document.getElementById('history-date');
+        // const loadHistoryBtn = document.getElementById('load-history-btn');
+        // const historyTable = document.getElementById('history-table');
+        // const historyTbody = document.getElementById('history-tbody');
+
+        // 数据操作区
+        // const exportBtn = document.getElementById('export-btn');
+        // const importFile = document.getElementById('import-file');
+
+        // ========================================
+        // 状态变量 (占位)
+        // ========================================
+        // let isRunning = false;
+        // let startTime = null;
+        // let timerInterval = null;
+        // let currentTaskName = '';
+
+        // ========================================
+        // 计时器引擎函数 (占位)
+        // ========================================
+        
+        /**
+         * 开始计时
+         * @param {string} taskName - 任务名称
+         */
+        // function startTimer(taskName) {
+        //     // TODO: 实现开始计时逻辑
+        // }
+
+        /**
+         * 停止计时
+         * @returns {Object} 计时记录对象
+         */
+        // function stopTimer() {
+        //     // TODO: 实现停止计时逻辑
+        // }
+
+        /**
+         * 计算有效工时（扣除休息时段）
+         * @param {number} startTime - 开始时间戳
+         * @param {number} endTime - 结束时间戳
+         * @param {Array} breakPeriods - 休息时段数组
+         * @returns {number} 有效工时（毫秒）
+         */
+        // function calculateEffectiveTime(startTime, endTime, breakPeriods) {
+        //     // TODO: 实现有效工时计算
+        // }
+
+        /**
+         * 换算人天数
+         * @param {number} hours - 小时数
+         * @returns {number} 人天数
+         */
+        // function convertToPersonDays(hours) {
+        //     // TODO: 实现人天换算
+        // }
+
+        // ========================================
+        // UI 更新函数 (占位)
+        // ========================================
+
+        /**
+         * 更新计时器显示
+         * @param {number} elapsedMs - 已运行毫秒数
+         */
+        // function updateTimerDisplay(elapsedMs) {
+        //     // TODO: 实现显示更新
+        // }
+
+        /**
+         * 渲染今日记录列表
+         */
+        // function renderTodayRecords() {
+        //     // TODO: 实现记录列表渲染
+        // }
+
+        /**
+         * 更新统计面板
+         */
+        // function updateStatsPanel() {
+        //     // TODO: 实现统计面板更新
+        // }
+
+        // ========================================
+        // 数据存储函数 (占位)
+        // ========================================
+
+        /**
+         * 保存计时记录到 localStorage
+         * @param {Object} entry - 计时记录对象
+         */
+        // function saveEntry(entry) {
+        //     // TODO: 实现记录保存
+        // }
+
+        /**
+         * 获取指定日期的所有记录
+         * @param {string} date - 日期字符串 (YYYY-MM-DD)
+         * @returns {Array} 记录数组
+         */
+        // function getEntriesByDate(date) {
+        //     // TODO: 实现按日期查询
+        // }
+
+        /**
+         * 导出数据为 JSON 文件
+         */
+        // function exportData() {
+        //     // TODO: 实现数据导出
+        // }
+
+        /**
+         * 从 JSON 文件导入数据
+         * @param {File} file - 导入的文件对象
+         */
+        // function importData(file) {
+        //     // TODO: 实现数据导入
+        // }
+
+        // ========================================
+        // 事件监听初始化 (占位)
+        // ========================================
+        
+        // 页面加载完成后初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('工作计时器已加载');
+            
+            // TODO: 初始化应用
+            // 1. 检查是否有未完成的计时
+            // 2. 加载今日记录
+            // 3. 更新统计面板
+            // 4. 绑定事件监听器
+        });
+
+        // TODO: 绑定按钮点击事件
+        // TODO: 绑定文件导入事件
+        // TODO: 绑定日期选择事件
+
+        // ========================================
+        // 应用初始化完成
+        // ========================================
+        console.log('工作计时器 JavaScript 框架已准备就绪');
+    </script>
+</body>
+</html>
