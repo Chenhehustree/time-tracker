@@ -1171,7 +1171,7 @@
 
         // ----- 任务状态机辅助函数 -----
         function canStart(task) {
-            return task.status === 'idle' || task.status === 'paused';
+            return task.status === 'idle' || task.status === 'paused' || task.status === 'completed';
         }
 
         function canPause(task) {
@@ -1297,9 +1297,11 @@
                         <button class="task-btn task-btn-resume bp5-button bp5-intent-success" data-action="resume" data-task-id="${task.id}">▶ 继续</button>
                         <button class="task-btn task-btn-complete bp5-button bp5-intent-danger" data-action="complete" data-task-id="${task.id}">✓ 结束</button>
                     `;
+                } else if (task.status === 'completed') {
+                    buttonsHTML = `<button class="task-btn bp5-button bp5-intent-primary" data-action="append" data-task-id="${task.id}">+ 追加记录</button>`;
                 }
             }
-            // completed 状态无按钮；readonly 模式也无按钮
+            // readonly 模式无按钮
 
             // 时间段统计
             const segmentCount = task.segments ? task.segments.length : 0;
@@ -2119,6 +2121,9 @@
                 case 'complete':
                     completeTask(task);
                     break;
+                case 'append':
+                    appendTask(task);
+                    break;
             }
         }
 
@@ -2188,6 +2193,19 @@
 
             task.status = 'completed';
             updateTaskTotals(task);
+
+            saveTodayTasks(todayTasks);
+            renderTaskCard(task);
+            updateDashboardStats();
+            updateActiveTaskBanner();
+        }
+
+        function appendTask(task) {
+            if (!canStart(task) || task.status !== 'completed') return;
+
+            const segment = createSegment(Date.now());
+            task.segments.push(segment);
+            task.status = 'running';
 
             saveTodayTasks(todayTasks);
             renderTaskCard(task);
@@ -2995,7 +3013,7 @@
             test('AC6: canStart(idle) === true', canStart(idleTask) === true);
             test('AC6: canStart(paused) === true', canStart(pausedTask) === true);
             test('AC6: canStart(running) === false', canStart(runningTask) === false);
-            test('AC6: canStart(completed) === false', canStart(completedTask) === false);
+            test('AC6: canStart(completed) === true', canStart(completedTask) === true);
 
             test('AC6: canPause(idle) === false', canPause(idleTask) === false);
             test('AC6: canPause(running) === true', canPause(runningTask) === true);
@@ -3710,6 +3728,98 @@
                 });
             }
         });
+
+        // ==========================================
+        // TASK-002: Completed 任务追加记录功能自测
+        // ==========================================
+        (function runTask002Tests() {
+            console.log('=== TASK-002 Completed 任务追加记录功能自测开始 ===');
+            let passCount = 0;
+            let failCount = 0;
+
+            function test(name, condition) {
+                if (condition) {
+                    console.log(`  [PASS] ${name}`);
+                    passCount++;
+                } else {
+                    console.error(`  [FAIL] ${name}`);
+                    failCount++;
+                }
+            }
+
+            // AC1: canStart 允许 completed 状态
+            console.log('\n--- AC1: canStart 允许 completed 状态 ---');
+            test('AC1: canStart(completed) === true', canStart({ status: 'completed' }) === true);
+            test('AC1: canStart(idle) 仍为 true', canStart({ status: 'idle' }) === true);
+            test('AC1: canStart(paused) 仍为 true', canStart({ status: 'paused' }) === true);
+            test('AC1: canStart(running) 仍为 false', canStart({ status: 'running' }) === false);
+
+            // AC2: completed 任务卡片渲染追加记录按钮
+            console.log('\n--- AC2: 追加记录按钮渲染测试 ---');
+            const completedTask = createTask('已完成任务');
+            completedTask.status = 'completed';
+            completedTask.segments = [
+                { id: 'seg-1', startTime: Date.now() - 3600000, endTime: Date.now() - 1800000, rawDuration: 1800000, effectiveDuration: 1800000 }
+            ];
+            completedTask.totalRawDuration = 1800000;
+            completedTask.totalEffectiveDuration = 1800000;
+
+            const html = buildTaskCardHTML(completedTask);
+            test('AC2: completed 任务卡片包含"追加记录"按钮', html.includes('追加记录'));
+            test('AC2: 追加记录按钮使用 bp5-intent-primary 样式', html.includes('bp5-intent-primary'));
+            test('AC2: 追加记录按钮 data-action="append"', html.includes('data-action="append"'));
+            test('AC2: 追加记录按钮绑定到任务 ID', html.includes(`data-task-id="${completedTask.id}"`));
+
+            // AC3: appendTask 函数行为
+            console.log('\n--- AC3: appendTask 功能测试 ---');
+            test('AC3: appendTask 函数存在', typeof appendTask === 'function');
+
+            const taskToAppend = createTask('测试追加');
+            taskToAppend.status = 'completed';
+            taskToAppend.segments = [
+                { id: 'seg-old', startTime: Date.now() - 7200000, endTime: Date.now() - 3600000, rawDuration: 3600000, effectiveDuration: 3600000 }
+            ];
+            taskToAppend.totalRawDuration = 3600000;
+            taskToAppend.totalEffectiveDuration = 3600000;
+
+            const originalSegCount = taskToAppend.segments.length;
+            appendTask(taskToAppend);
+            test('AC3: appendTask 后状态变为 running', taskToAppend.status === 'running');
+            test('AC3: appendTask 后新增一个 segment', taskToAppend.segments.length === originalSegCount + 1);
+            test('AC3: 新 segment 的 endTime 为 null', taskToAppend.segments[taskToAppend.segments.length - 1].endTime === null);
+            test('AC3: 新 segment 的 startTime 是数字', typeof taskToAppend.segments[taskToAppend.segments.length - 1].startTime === 'number');
+
+            // AC4: 再次结束后可再次追加
+            console.log('\n--- AC4: 再次结束并追加测试 ---');
+            completeTask(taskToAppend);
+            test('AC4: complete 后状态回到 completed', taskToAppend.status === 'completed');
+            test('AC4: 回到 completed 后仍可 append', canStart(taskToAppend) === true);
+
+            const segCountAfterComplete = taskToAppend.segments.length;
+            appendTask(taskToAppend);
+            test('AC4: 再次 append 后状态变为 running', taskToAppend.status === 'running');
+            test('AC4: 再次 append 后再增一个 segment', taskToAppend.segments.length === segCountAfterComplete + 1);
+
+            // 再次结束，清理状态
+            completeTask(taskToAppend);
+
+            // AC5: 不影响现有状态机其他分支
+            console.log('\n--- AC5: 不影响现有状态机 ---');
+            test('AC5: canPause 不变', canPause({ status: 'running' }) === true && canPause({ status: 'completed' }) === false);
+            test('AC5: canComplete 不变', canComplete({ status: 'running' }) === true && canComplete({ status: 'completed' }) === false);
+
+            // 清理计时器
+            stopAllTimers();
+            todayTasks = [];
+            localStorage.removeItem(todayKey());
+
+            console.log(`\n=== TASK-002 自测结束: ${passCount} 通过, ${failCount} 失败 ===`);
+            if (failCount > 0) {
+                console.error('⚠️ 存在失败的测试，请检查实现！');
+            } else {
+                console.log('✅ 所有 TASK-002 测试通过！');
+            }
+        })();
 
         console.log('V2 Modern Dashboard UI 已加载');
     </script>
