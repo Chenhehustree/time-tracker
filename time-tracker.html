@@ -1047,9 +1047,10 @@
 
         /* ===== 时间轴进度条样式 (TASK-004 优化) ===== */
         .timeline-bar {
-            width: calc(100% - 32px);
-            padding: 20px 0;
-            margin: 8px 16px 0;
+            width: calc(100% + 24px);
+            padding: 20px 12px;
+            margin: 8px -12px 0;
+            box-sizing: border-box;
         }
 
         .timeline-labels {
@@ -1058,7 +1059,8 @@
             font-size: 11px;
             color: var(--text-secondary);
             margin-bottom: 4px;
-            padding: 0 8px;
+            padding: 0;
+            width: 100%;
         }
 
         .timeline-track {
@@ -1067,7 +1069,8 @@
             border-radius: 12px;
             position: relative;
             cursor: pointer;
-            min-width: 700px;
+            width: 100%;
+            min-width: 100%;
         }
 
         .segment-fill {
