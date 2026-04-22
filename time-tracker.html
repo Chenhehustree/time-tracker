@@ -155,11 +155,12 @@
 
         .stat-card {
             background: var(--card-bg);
-            border-radius: 12px;
+            border-radius: 6px;
             padding: 20px;
             box-shadow: var(--shadow);
             position: relative;
             overflow: hidden;
+            border: 1px solid var(--border);
         }
 
         .stat-card::before {
@@ -169,34 +170,58 @@
             left: 0;
             right: 0;
             height: 4px;
-            border-radius: 12px 12px 0 0;
+            border-radius: 6px 6px 0 0;
         }
 
-        .stat-card:nth-child(1)::before {
+        .stat-card-primary::before {
             background-color: var(--primary);
         }
 
-        .stat-card:nth-child(2)::before {
+        .stat-card-success::before {
             background-color: var(--success);
         }
 
-        .stat-card:nth-child(3)::before {
+        .stat-card-purple::before {
+            background-color: #8F398F;
+        }
+
+        .stat-card-warning::before {
             background-color: var(--warning);
         }
 
-        .stat-card:nth-child(4)::before {
-            background-color: var(--danger);
+        .stat-icon {
+            font-size: 20px;
+            margin-bottom: 12px;
+            display: inline-block;
+        }
+
+        .stat-card-primary .stat-icon {
+            color: var(--primary);
+        }
+
+        .stat-card-success .stat-icon {
+            color: var(--success);
+        }
+
+        .stat-card-purple .stat-icon {
+            color: #8F398F;
+        }
+
+        .stat-card-warning .stat-icon {
+            color: var(--warning);
         }
 
         .stat-label {
-            font-size: 14px;
+            font-size: 12px;
             color: var(--text-secondary);
             margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
         }
 
         .stat-value {
             font-size: 28px;
-            font-weight: 700;
+            font-weight: 600;
             color: var(--text-primary);
         }
 
@@ -1133,30 +1158,34 @@
 
         <!-- 统计概览卡片行 -->
         <div id="stats-container">
-            <div class="stat-card bp5-card bp5-elevation-1">
+            <div class="stat-card bp5-card bp5-elevation-1 stat-card-primary">
+                <div class="stat-icon bp5-icon-projects"></div>
                 <div class="stat-label">任务数</div>
-                <div class="stat-value">
+                <div class="stat-value bp5-intent-primary">
                     <span>0</span>
                     <span class="stat-unit">个</span>
                 </div>
             </div>
-            <div class="stat-card bp5-card bp5-elevation-1">
+            <div class="stat-card bp5-card bp5-elevation-1 stat-card-success">
+                <div class="stat-icon bp5-icon-time"></div>
                 <div class="stat-label">总工时</div>
-                <div class="stat-value">
+                <div class="stat-value bp5-intent-success">
                     <span>0</span>
                     <span class="stat-unit">小时</span>
                 </div>
             </div>
-            <div class="stat-card bp5-card bp5-elevation-1">
+            <div class="stat-card bp5-card bp5-elevation-1 stat-card-purple">
+                <div class="stat-icon bp5-icon-person"></div>
                 <div class="stat-label">人天</div>
                 <div class="stat-value">
                     <span>0</span>
                     <span class="stat-unit">天</span>
                 </div>
             </div>
-            <div class="stat-card bp5-card bp5-elevation-1">
+            <div class="stat-card bp5-card bp5-elevation-1 stat-card-warning">
+                <div class="stat-icon bp5-icon-coffee"></div>
                 <div class="stat-label">休息</div>
-                <div class="stat-value">
+                <div class="stat-value bp5-intent-warning">
                     <span>0</span>
                     <span class="stat-unit">小时</span>
                 </div>
