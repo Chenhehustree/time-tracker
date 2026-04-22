@@ -742,11 +742,11 @@
             box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
         }
 
-        /* ===== 时间轴进度条样式 (V2-005) ===== */
+        /* ===== 时间轴进度条样式 (TASK-004 优化) ===== */
         .timeline-bar {
-            width: 100%;
+            width: calc(100% - 32px);
             padding: 20px 0;
-            margin-top: 8px;
+            margin: 8px 16px 0;
         }
 
         .timeline-labels {
@@ -760,40 +760,46 @@
 
         .timeline-track {
             height: 24px;
-            background: #e5e7eb;
+            background: #E1E8ED;
             border-radius: 12px;
             position: relative;
             cursor: pointer;
+            min-width: 700px;
         }
 
         .segment-fill {
             height: 100%;
-            background: #3b82f6;
+            background: #2B95D6;
             border-radius: 12px;
             position: absolute;
             pointer-events: none;
+            min-width: 20px;
         }
 
         .handle {
             width: 16px;
             height: 16px;
-            background: white;
-            border: 3px solid #3b82f6;
+            background: #106BA3;
+            border: 2px solid #106BA3;
             border-radius: 50%;
             position: absolute;
             top: 4px;
             cursor: ew-resize;
             z-index: 10;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-            transition: transform 0.1s ease, border-color 0.2s ease;
+            box-shadow: 0 2px 6px rgba(16, 107, 163, 0.4);
+            transition: transform 0.15s ease, box-shadow 0.15s ease, background-color 0.2s ease;
         }
 
         .handle:hover {
-            transform: scale(1.1);
+            transform: scale(1.15);
+            box-shadow: 0 3px 8px rgba(16, 107, 163, 0.6);
+            background: #2B95D6;
         }
 
         .handle.conflict {
-            border-color: #ef4444;
+            border-color: #DB3737;
+            background: #DB3737;
+            box-shadow: 0 2px 6px rgba(219, 55, 55, 0.4);
         }
 
         .handle-start {
@@ -814,16 +820,17 @@
 
         .timeline-tooltip {
             position: fixed;
-            background: #1f2937;
+            background: #2B95D6;
             color: white;
-            padding: 4px 8px;
-            border-radius: 4px;
+            padding: 6px 10px;
+            border-radius: 6px;
             font-size: 12px;
             pointer-events: none;
             z-index: 1000;
             white-space: nowrap;
             transform: translateX(-50%);
-            margin-top: -32px;
+            margin-top: -36px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
         }
 
         .timeline-tooltip::after {
@@ -833,7 +840,7 @@
             left: 50%;
             transform: translateX(-50%);
             border: 4px solid transparent;
-            border-top-color: #1f2937;
+            border-top-color: #2B95D6;
         }
 
         /* ===== 设置视图样式 (V2-008) ===== */
