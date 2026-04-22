@@ -296,6 +296,133 @@
             justify-content: space-between;
             align-items: center;
             margin-bottom: 12px;
+            position: relative;
+        }
+
+        /* ===== 更多菜单按钮 (TASK-005) ===== */
+        .task-more-menu-btn {
+            margin-left: 8px;
+            padding: 2px 8px !important;
+            min-height: 24px !important;
+            line-height: 1;
+            font-size: 16px;
+        }
+
+        .task-more-menu {
+            position: absolute;
+            top: 100%;
+            right: 0;
+            margin-top: 4px;
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            box-shadow: 0 2px 8px rgba(17, 20, 24, 0.15);
+            z-index: 50;
+            min-width: 140px;
+            display: none;
+            overflow: hidden;
+        }
+
+        .task-more-menu.visible {
+            display: block;
+        }
+
+        .task-more-menu-item {
+            display: block;
+            width: 100%;
+            padding: 8px 12px;
+            border: none;
+            background: none;
+            text-align: left;
+            font-size: 13px;
+            cursor: pointer;
+            color: var(--text-primary);
+            transition: background 0.15s ease;
+        }
+
+        .task-more-menu-item:hover {
+            background: #f0f0f0;
+        }
+
+        .task-more-menu-item.delete-item {
+            color: var(--danger);
+        }
+
+        .task-more-menu-item.delete-item:hover {
+            background: rgba(219, 55, 55, 0.08);
+        }
+
+        /* ===== 确认对话框 (TASK-005) ===== */
+        .delete-dialog-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            padding: 20px;
+        }
+
+        .delete-dialog {
+            background: var(--card-bg);
+            border-radius: 6px;
+            box-shadow: 0 4px 16px rgba(17, 20, 24, 0.2);
+            max-width: 420px;
+            width: 100%;
+            overflow: hidden;
+        }
+
+        .delete-dialog-header {
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .delete-dialog-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin: 0;
+        }
+
+        .delete-dialog-close {
+            background: none;
+            border: none;
+            font-size: 18px;
+            color: var(--text-secondary);
+            cursor: pointer;
+            padding: 0;
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 4px;
+            transition: background 0.15s ease;
+        }
+
+        .delete-dialog-close:hover {
+            background: rgba(0, 0, 0, 0.05);
+        }
+
+        .delete-dialog-body {
+            padding: 20px;
+            font-size: 14px;
+            color: var(--text-primary);
+            line-height: 1.6;
+        }
+
+        .delete-dialog-footer {
+            padding: 12px 20px 16px;
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
         }
 
         .task-name {
@@ -1242,7 +1369,7 @@
         // ==========================================
 
         // ----- 全局状态 -----
-        let todayTasks = [];
+        window.todayTasks = [];
         window.runningIntervals = {};
 
         // ----- 新建任务 -----
@@ -1364,10 +1491,25 @@
                 `;
             }
 
+            // 更多菜单HTML（只读模式下不显示）
+            const moreMenuHTML = readonly ? '' : `
+                <div class="task-more-menu-wrapper" style="position:relative;">
+                    <button class="task-more-menu-btn bp5-button bp5-minimal" data-more-menu="${task.id}" title="更多">⋮</button>
+                    <div class="task-more-menu" data-menu-dropdown="${task.id}">
+                        <button class="task-more-menu-item delete-item bp5-intent-danger" data-delete-task="${task.id}">删除任务</button>
+                    </div>
+                </div>
+            `;
+
             return `
                 <div class="task-card-header">
-                    <h3 class="task-name">${escapeHtml(task.taskName)}</h3>
-                    <span class="task-status ${statusClass} bp5-tag ${task.status === 'running' ? 'bp5-intent-success' : task.status === 'paused' ? 'bp5-intent-warning' : task.status === 'completed' ? 'bp5-minimal' : ''}">${statusText[task.status]}</span>
+                    <div style="display:flex;align-items:center;flex:1;min-width:0;">
+                        <h3 class="task-name">${escapeHtml(task.taskName)}</h3>
+                    </div>
+                    <div style="display:flex;align-items:center;flex-shrink:0;">
+                        <span class="task-status ${statusClass} bp5-tag ${task.status === 'running' ? 'bp5-intent-success' : task.status === 'paused' ? 'bp5-intent-warning' : task.status === 'completed' ? 'bp5-minimal' : ''}">${statusText[task.status]}</span>
+                        ${moreMenuHTML}
+                    </div>
                 </div>
                 <div class="task-timer ${timerHidden}" data-task-timer="${task.id}">00:00:00</div>
                 <div class="task-duration">${durationText}</div>
@@ -1938,6 +2080,25 @@
                         handleTaskAction(taskId, action);
                     });
                 });
+
+                // 绑定更多菜单按钮事件 (TASK-005)
+                const moreBtn = card.querySelector(`[data-more-menu="${task.id}"]`);
+                if (moreBtn) {
+                    moreBtn.addEventListener('click', function(e) {
+                        e.stopPropagation();
+                        toggleMoreMenu(task.id);
+                    });
+                }
+
+                // 绑定删除任务菜单项事件 (TASK-005)
+                const deleteMenuItem = card.querySelector(`[data-delete-task="${task.id}"]`);
+                if (deleteMenuItem) {
+                    deleteMenuItem.addEventListener('click', function(e) {
+                        e.stopPropagation();
+                        hideAllMoreMenus();
+                        showDeleteConfirmDialog(task);
+                    });
+                }
             }
 
             // 绑定时间段展开/收起事件（只读模式也可展开查看）
@@ -2004,6 +2165,143 @@
                 toggleEl.querySelector('.segments-toggle-icon').textContent = '▲';
                 toggleEl.querySelector('span:last-child').textContent = '收起详情';
             }
+        }
+
+        // ----- 更多菜单 (TASK-005) -----
+        let activeMoreMenuTaskId = null;
+
+        function toggleMoreMenu(taskId) {
+            const menu = document.querySelector(`[data-menu-dropdown="${taskId}"]`);
+            if (!menu) return;
+
+            const isVisible = menu.classList.contains('visible');
+            hideAllMoreMenus();
+
+            if (!isVisible) {
+                menu.classList.add('visible');
+                activeMoreMenuTaskId = taskId;
+            }
+        }
+
+        function hideAllMoreMenus() {
+            const menus = document.querySelectorAll('.task-more-menu.visible');
+            menus.forEach(menu => menu.classList.remove('visible'));
+            activeMoreMenuTaskId = null;
+        }
+
+        // 点击外部关闭菜单
+        document.addEventListener('click', function(e) {
+            if (activeMoreMenuTaskId) {
+                const menuWrapper = document.querySelector(`[data-menu-dropdown="${activeMoreMenuTaskId}"]`);
+                if (menuWrapper && !menuWrapper.contains(e.target)) {
+                    hideAllMoreMenus();
+                }
+            }
+        });
+
+        // ----- 删除确认对话框 (TASK-005) -----
+        let currentDeleteTask = null;
+
+        function showDeleteConfirmDialog(task) {
+            closeDeleteConfirmDialog();
+            currentDeleteTask = task;
+
+            const overlay = document.createElement('div');
+            overlay.className = 'delete-dialog-overlay';
+            overlay.id = 'delete-dialog-overlay';
+
+            overlay.innerHTML = `
+                <div class="delete-dialog bp5-card">
+                    <div class="delete-dialog-header">
+                        <h3 class="delete-dialog-title">确认删除</h3>
+                        <button class="delete-dialog-close" data-delete-dialog-action="close">×</button>
+                    </div>
+                    <div class="delete-dialog-body">
+                        确定删除任务【${escapeHtml(task.taskName)}】及所有时间段？此操作不可恢复。
+                    </div>
+                    <div class="delete-dialog-footer">
+                        <button class="bp5-button" data-delete-dialog-action="cancel">取消</button>
+                        <button class="bp5-button bp5-intent-danger" data-delete-dialog-action="confirm">删除</button>
+                    </div>
+                </div>
+            `;
+
+            document.body.appendChild(overlay);
+
+            // 绑定对话框按钮事件
+            const closeBtn = overlay.querySelector('[data-delete-dialog-action="close"]');
+            const cancelBtn = overlay.querySelector('[data-delete-dialog-action="cancel"]');
+            const confirmBtn = overlay.querySelector('[data-delete-dialog-action="confirm"]');
+
+            if (closeBtn) {
+                closeBtn.addEventListener('click', closeDeleteConfirmDialog);
+            }
+            if (cancelBtn) {
+                cancelBtn.addEventListener('click', closeDeleteConfirmDialog);
+            }
+            if (confirmBtn) {
+                confirmBtn.addEventListener('click', function() {
+                    if (currentDeleteTask) {
+                        deleteTask(currentDeleteTask.id);
+                    }
+                    closeDeleteConfirmDialog();
+                });
+            }
+
+            // 点击遮罩层关闭
+            overlay.addEventListener('click', function(e) {
+                if (e.target === overlay) {
+                    closeDeleteConfirmDialog();
+                }
+            });
+        }
+
+        function closeDeleteConfirmDialog() {
+            const overlay = document.getElementById('delete-dialog-overlay');
+            if (overlay) {
+                overlay.remove();
+            }
+            currentDeleteTask = null;
+        }
+
+        // ----- 删除任务 (TASK-005) -----
+        function deleteTask(taskId) {
+            const taskIndex = todayTasks.findIndex(t => t.id === taskId);
+            if (taskIndex === -1) return;
+
+            const task = todayTasks[taskIndex];
+
+            // 如果任务正在运行，停止计时器
+            if (task.status === 'running') {
+                stopTaskTimer(taskId);
+            }
+
+            // 从数组中移除
+            todayTasks.splice(taskIndex, 1);
+
+            // 保存到 localStorage
+            saveTodayTasks(todayTasks);
+
+            // 从 DOM 中移除卡片
+            const card = document.getElementById(`task-card-${taskId}`);
+            if (card) {
+                card.remove();
+            }
+
+            // 如果容器为空，显示空状态
+            const container = document.getElementById('tasks-container');
+            if (container && container.children.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-text">暂无任务</div>
+                        <div class="empty-state-hint">点击"新建任务"开始</div>
+                    </div>
+                `;
+            }
+
+            // 更新 Dashboard 统计
+            updateDashboardStats();
+            updateActiveTaskBanner();
         }
 
         // ----- 删除时间段 (V2-004) -----
