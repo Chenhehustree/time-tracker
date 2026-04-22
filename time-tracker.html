@@ -432,6 +432,41 @@
             overflow-y: auto;
         }
 
+        /* ===== 独立面板样式 (TASK-003) ===== */
+        .segments-panel {
+            width: 100%;
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease;
+            background: var(--card-bg);
+            border-top: 1px solid var(--border);
+        }
+
+        .segments-panel.expanded {
+            max-height: 2000px;
+        }
+
+        .segments-panel-inner {
+            padding: 16px 20px;
+        }
+
+        .task-card-expand-btn {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-top: 12px;
+            font-size: 13px;
+        }
+
+        .task-card-recent-segment {
+            font-size: 13px;
+            color: var(--text-secondary);
+            margin-top: 8px;
+            padding: 8px 12px;
+            background: #f9fafb;
+            border-radius: 6px;
+        }
+
         .segment-item {
             background: #ffffff;
             border-radius: 6px;
@@ -1303,11 +1338,24 @@
             }
             // readonly 模式无按钮
 
-            // 时间段统计
+            // 最近一个时间段（精简视图显示）
+            let recentSegmentHTML = '';
             const segmentCount = task.segments ? task.segments.length : 0;
-            const segmentSummaryText = segmentCount > 0
-                ? `时间段列表（共${segmentCount}段，累计${formatDurationMinutes(Math.floor(rawMs / 60000))}）`
-                : '时间段列表（暂无记录）';
+            if (segmentCount > 0) {
+                const latestSegment = task.segments[task.segments.length - 1];
+                const startDate = new Date(latestSegment.startTime);
+                const endDate = latestSegment.endTime ? new Date(latestSegment.endTime) : null;
+                const startTimeStr = formatTime(startDate);
+                const endTimeStr = endDate ? formatTime(endDate) : '进行中';
+                const segDuration = endDate
+                    ? formatDurationMinutes(Math.floor((latestSegment.endTime - latestSegment.startTime) / 60000))
+                    : formatDurationMinutes(Math.floor((Date.now() - latestSegment.startTime) / 60000));
+                recentSegmentHTML = `
+                    <div class="task-card-recent-segment">
+                        <span>最近：${formatDate(startDate)} ${startTimeStr} - ${endTimeStr}（${segDuration}）</span>
+                    </div>
+                `;
+            }
 
             return `
                 <div class="task-card-header">
@@ -1316,15 +1364,16 @@
                 </div>
                 <div class="task-timer ${timerHidden}" data-task-timer="${task.id}">00:00:00</div>
                 <div class="task-duration">${durationText}</div>
+                ${recentSegmentHTML}
                 <div class="task-actions">
                     ${buttonsHTML}
                 </div>
-                <div class="segments-section">
-                    <div class="segments-toggle" data-toggle-segments="${task.id}">
-                        <span class="segments-toggle-icon">▼</span>
-                        <span>${segmentSummaryText}</span>
-                    </div>
-                    <div class="segments-list" data-segments-list="${task.id}">
+                <button class="task-card-expand-btn bp5-button bp5-minimal" data-toggle-segments="${task.id}">
+                    <span class="segments-toggle-icon">▼</span>
+                    <span>展开详情</span>
+                </button>
+                <div class="segments-panel" data-segments-panel="${task.id}">
+                    <div class="segments-panel-inner">
                         ${buildSegmentsListHTML(task, readonly)}
                     </div>
                 </div>
@@ -1929,22 +1978,24 @@
             });
         }
 
-        // ----- 时间段展开/收起 (V2-004) -----
+        // ----- 时间段展开/收起 (TASK-003) -----
         function toggleSegmentsList(taskId) {
             const toggleEl = document.querySelector(`[data-toggle-segments="${taskId}"]`);
-            const listEl = document.querySelector(`[data-segments-list="${taskId}"]`);
-            if (!toggleEl || !listEl) return;
+            const panelEl = document.querySelector(`[data-segments-panel="${taskId}"]`);
+            if (!toggleEl || !panelEl) return;
 
-            const isExpanded = listEl.classList.contains('expanded');
+            const isExpanded = panelEl.classList.contains('expanded');
             
             if (isExpanded) {
-                listEl.classList.remove('expanded');
+                panelEl.classList.remove('expanded');
                 toggleEl.classList.remove('expanded');
                 toggleEl.querySelector('.segments-toggle-icon').textContent = '▼';
+                toggleEl.querySelector('span:last-child').textContent = '展开详情';
             } else {
-                listEl.classList.add('expanded');
+                panelEl.classList.add('expanded');
                 toggleEl.classList.add('expanded');
                 toggleEl.querySelector('.segments-toggle-icon').textContent = '▲';
+                toggleEl.querySelector('span:last-child').textContent = '收起详情';
             }
         }
 
@@ -1986,11 +2037,14 @@
 
         // ----- 手动添加时间段 (V2-004) -----
         function showSegmentAddForm(taskId) {
-            const listEl = document.querySelector(`[data-segments-list="${taskId}"]`);
-            if (!listEl) return;
+            const panelEl = document.querySelector(`[data-segments-panel="${taskId}"]`);
+            if (!panelEl) return;
+            
+            const innerEl = panelEl.querySelector('.segments-panel-inner');
+            if (!innerEl) return;
 
             // 检查是否已有表单
-            const existingForm = listEl.querySelector('.segment-form');
+            const existingForm = innerEl.querySelector('.segment-form');
             if (existingForm) {
                 existingForm.remove();
                 return;
@@ -2029,10 +2083,10 @@
                 </div>
             `;
 
-            listEl.insertAdjacentHTML('beforeend', formHTML);
+            innerEl.insertAdjacentHTML('beforeend', formHTML);
 
             // 绑定表单事件
-            const form = listEl.querySelector('.segment-form');
+            const form = innerEl.querySelector('.segment-form');
             const cancelBtn = form.querySelector('[data-form-cancel]');
             const saveBtn = form.querySelector('[data-form-save]');
 
@@ -3189,10 +3243,10 @@
             console.log('\n--- AC1: 默认收起状态测试 ---');
             test('AC1: buildTaskCardHTML 函数存在', typeof buildTaskCardHTML === 'function');
             const cardHTML = buildTaskCardHTML(testTask);
-            test('AC1: 卡片HTML包含时间段区域', cardHTML.includes('segments-section'));
-            test('AC1: 显示段数统计（共3段）', cardHTML.includes('共3段'));
+            test('AC1: 卡片HTML包含独立面板', cardHTML.includes('segments-panel'));
+            test('AC1: 默认显示展开详情按钮', cardHTML.includes('展开详情'));
             test('AC1: 默认显示▼图标', cardHTML.includes('▼'));
-            test('AC1: 时间段列表初始未展开', !cardHTML.includes('segments-list expanded'));
+            test('AC1: 独立面板初始未展开', !cardHTML.includes('segments-panel expanded'));
 
             // AC2: 时间段详情展示（含年月日）
             console.log('\n--- AC2: 时间段详情展示测试 ---');
@@ -3498,8 +3552,8 @@
             console.log('\n--- AC5: 时间段列表测试 ---');
             test('AC5: 只读模式不显示删除按钮', !readonlyHTML.includes('segment-delete-btn'));
             test('AC5: 只读模式不显示添加时间段按钮', !readonlyHTML.includes('segment-add-btn'));
-            test('AC5: 只读模式仍显示时间段区域', readonlyHTML.includes('segments-section'));
-            test('AC5: 只读模式仍显示展开/收起', readonlyHTML.includes('segments-toggle'));
+            test('AC5: 只读模式仍显示独立面板', readonlyHTML.includes('segments-panel'));
+            test('AC5: 只读模式仍显示展开详情按钮', readonlyHTML.includes('展开详情'));
 
             // AC6: 历史统计概览
             console.log('\n--- AC6: 历史统计概览测试 ---');
@@ -3818,6 +3872,91 @@
                 console.error('⚠️ 存在失败的测试，请检查实现！');
             } else {
                 console.log('✅ 所有 TASK-002 测试通过！');
+            }
+        })();
+
+        // ==========================================
+        // TASK-003: 任务卡片精简展示 + 展开独立面板自测代码
+        // ==========================================
+        (function runTask003Tests() {
+            console.log('=== TASK-003 任务卡片精简展示 + 展开独立面板自测开始 ===');
+            let passCount = 0;
+            let failCount = 0;
+
+            function test(name, condition) {
+                if (condition) {
+                    console.log(`  [PASS] ${name}`);
+                    passCount++;
+                } else {
+                    console.error(`  [FAIL] ${name}`);
+                    failCount++;
+                }
+            }
+
+            // 准备测试数据
+            const testTask = createTask('TASK-003 测试任务');
+            testTask.status = 'paused';
+            testTask.segments = [
+                { id: 'seg-1', startTime: new Date('2026-04-21T09:00:00').getTime(), endTime: new Date('2026-04-21T11:30:00').getTime(), rawDuration: 9000000, effectiveDuration: 8100000 },
+                { id: 'seg-2', startTime: new Date('2026-04-21T13:00:00').getTime(), endTime: new Date('2026-04-21T15:15:00').getTime(), rawDuration: 8100000, effectiveDuration: 8100000 },
+                { id: 'seg-3', startTime: new Date('2026-04-21T16:00:00').getTime(), endTime: null, rawDuration: 0, effectiveDuration: 0 }
+            ];
+            updateTaskTotals(testTask);
+            todayTasks = [testTask];
+
+            // AC1: 默认状态卡片不显示完整时间段列表和时间轴
+            console.log('\n--- AC1: 默认状态卡片精简测试 ---');
+            const cardHTML = buildTaskCardHTML(testTask);
+            test('AC1: 默认视图包含任务名', cardHTML.includes('TASK-003 测试任务'));
+            test('AC1: 默认视图包含状态标签', cardHTML.includes('task-status'));
+            test('AC1: 默认视图包含累计时长', cardHTML.includes('累计时长'));
+            test('AC1: 默认视图包含最近时间段', cardHTML.includes('最近'));
+            test('AC1: 默认视图包含展开详情按钮', cardHTML.includes('展开详情'));
+            test('AC1: 默认视图包含独立面板容器', cardHTML.includes('segments-panel'));
+            test('AC1: 独立面板初始未展开', !cardHTML.includes('segments-panel expanded'));
+            test('AC1: 面板内包含时间段列表', cardHTML.includes('segment-item'));
+
+            // AC2: 点击展开详情后下方滑出独立面板，动画平滑
+            console.log('\n--- AC2: 展开详情按钮测试 ---');
+            test('AC2: 展开按钮使用 bp5-minimal 样式', cardHTML.includes('bp5-minimal'));
+            test('AC2: 展开按钮有 data-toggle-segments 属性', cardHTML.includes('data-toggle-segments'));
+            test('AC2: toggleSegmentsList 函数存在', typeof toggleSegmentsList === 'function');
+
+            // AC3: 独立面板宽度与卡片一致（全宽），内部空间充足
+            console.log('\n--- AC3: 独立面板结构测试 ---');
+            test('AC3: 独立面板使用 segments-panel 类', cardHTML.includes('segments-panel'));
+            test('AC3: 独立面板内有 segments-panel-inner', cardHTML.includes('segments-panel-inner'));
+            test('AC3: 面板内包含时间段列表', cardHTML.includes('segment-item'));
+            test('AC3: 面板内包含时间轴', cardHTML.includes('timeline-bar'));
+            test('AC3: 面板内包含添加时间段按钮', cardHTML.includes('添加时间段'));
+
+            // AC4: 再次点击可收起面板
+            console.log('\n--- AC4: 收起面板测试 ---');
+            test('AC4: 按钮文字可在展开/收起间切换', cardHTML.includes('展开详情'));
+
+            // AC5: 只读模式仍支持展开
+            console.log('\n--- AC5: 只读模式测试 ---');
+            const readonlyTask = createTask('只读测试');
+            readonlyTask.status = 'completed';
+            readonlyTask.segments = [
+                { id: 'seg-r1', startTime: new Date('2026-04-20T09:00:00').getTime(), endTime: new Date('2026-04-20T11:00:00').getTime(), rawDuration: 7200000, effectiveDuration: 7200000 }
+            ];
+            readonlyTask.totalRawDuration = 7200000;
+            readonlyTask.totalEffectiveDuration = 7200000;
+            const readonlyHTML = buildTaskCardHTML(readonlyTask, true);
+            test('AC5: 只读模式仍有展开详情按钮', readonlyHTML.includes('展开详情'));
+            test('AC5: 只读模式无操作按钮', !readonlyHTML.includes('data-action="start"'));
+            test('AC5: 只读模式面板内有segment列表', readonlyHTML.includes('segment-item'));
+
+            // 清理测试数据
+            todayTasks = [];
+            localStorage.removeItem(todayKey());
+
+            console.log(`\n=== TASK-003 自测结束: ${passCount} 通过, ${failCount} 失败 ===`);
+            if (failCount > 0) {
+                console.error('⚠️ 存在失败的测试，请检查实现！');
+            } else {
+                console.log('✅ 所有 TASK-003 测试通过！');
             }
         })();
 
