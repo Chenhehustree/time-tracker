@@ -859,6 +859,123 @@
             background: var(--danger);
         }
 
+        /* ===== 暗黑模式覆盖 (TASK-008) ===== */
+        body.bp5-dark {
+            --main-bg: #1c2127;
+            --card-bg: #252a31;
+            --text-primary: #f6f7f9;
+            --text-secondary: #abb3bf;
+            --border: #404854;
+            --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 1px 1px rgba(0, 0, 0, 0.35);
+            --sidebar-bg: #111418;
+        }
+
+        body.bp5-dark .task-status.idle {
+            background: #404854;
+            color: #abb3bf;
+        }
+
+        body.bp5-dark .task-status.running {
+            background: rgba(21, 179, 113, 0.2);
+            color: #3dcc91;
+        }
+
+        body.bp5-dark .task-status.paused {
+            background: rgba(242, 157, 73, 0.2);
+            color: #f9b258;
+        }
+
+        body.bp5-dark .task-status.completed {
+            background: #404854;
+            color: #abb3bf;
+        }
+
+        body.bp5-dark .segments-list {
+            background: #2f343c;
+        }
+
+        body.bp5-dark .task-card-recent-segment {
+            background: #2f343c;
+        }
+
+        body.bp5-dark .segment-item {
+            background: #2f343c;
+            border-bottom-color: var(--border);
+        }
+
+        body.bp5-dark .segment-form {
+            background: #2f343c;
+            border-color: var(--border);
+        }
+
+        body.bp5-dark .timeline-track {
+            background: #404854;
+        }
+
+        body.bp5-dark .task-more-menu {
+            background: var(--card-bg);
+            border-color: var(--border);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+        }
+
+        body.bp5-dark .task-more-menu-item:hover {
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        body.bp5-dark .task-more-menu-item.delete-item:hover {
+            background: rgba(219, 55, 55, 0.15);
+        }
+
+        body.bp5-dark .delete-dialog-close:hover {
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        body.bp5-dark .break-period-item {
+            background: #2f343c;
+        }
+
+        body.bp5-dark .segment-form-btn-cancel {
+            background: #404854;
+            color: var(--text-primary);
+        }
+
+        body.bp5-dark .segment-form-btn-cancel:hover {
+            background: #5f6b7c;
+        }
+
+        body.bp5-dark .segment-form-error {
+            background: rgba(219, 55, 55, 0.1);
+        }
+
+        body.bp5-dark .segment-form-field input {
+            background: #1c2127;
+            color: var(--text-primary);
+            border-color: var(--border);
+        }
+
+        body.bp5-dark .break-period-field input[type="text"],
+        body.bp5-dark .break-period-field input[type="time"] {
+            background: #1c2127;
+            color: var(--text-primary);
+            border-color: var(--border);
+        }
+
+        body.bp5-dark .task-name-input {
+            background: #1c2127;
+            color: var(--text-primary);
+            border-color: var(--border);
+        }
+
+        body.bp5-dark #history-date-picker {
+            background: var(--card-bg);
+            color: var(--text-primary);
+            border-color: var(--border);
+        }
+
+        body.bp5-dark .task-card.status-completed {
+            border-color: #5f6b7c;
+        }
+
         /* ===== 响应式基础 ===== */
         @media (max-width: 1024px) {
             #stats-container {
