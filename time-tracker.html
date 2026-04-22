@@ -4,23 +4,25 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>工作计时器</title>
+    <link href="https://unpkg.com/@blueprintjs/core@5/lib/css/blueprint.css" rel="stylesheet">
+    <link href="https://unpkg.com/@blueprintjs/icons@5/lib/css/blueprint-icons.css" rel="stylesheet">
     <style>
         /* ===== CSS 自定义属性 ===== */
         :root {
             --sidebar-bg: #1e293b;        /* 深蓝灰侧边栏 */
             --sidebar-text: #94a3b8;      /* 侧边栏文字 */
             --sidebar-active: #ffffff;    /* 激活项文字 */
-            --sidebar-active-bg: #3b82f6; /* 激活项背景 */
+            --sidebar-active-bg: #2B95D6; /* 激活项背景 - Blueprint 蓝 */
             --main-bg: #f8fafc;           /* 主内容区背景 */
             --card-bg: #ffffff;           /* 卡片背景 */
-            --primary: #3b82f6;           /* 主按钮色 */
-            --success: #10b981;           /* 进行中-绿色 */
-            --warning: #f59e0b;           /* 已暂停-橙色 */
-            --danger: #ef4444;            /* 结束按钮-红色 */
+            --primary: #2B95D6;           /* 主按钮色 - Blueprint 蓝 */
+            --success: #15B371;           /* 进行中-绿色 - Blueprint 绿 */
+            --warning: #F29D49;           /* 已暂停-橙色 - Blueprint 橙 */
+            --danger: #DB3737;            /* 结束按钮-红色 - Blueprint 红 */
             --text-primary: #1f2937;      /* 主要文字 */
-            --text-secondary: #6b7280;    /* 次要文字 */
-            --border: #e5e7eb;            /* 边框色 */
-            --shadow: 0 4px 6px rgba(0,0,0,0.1); /* 卡片阴影 */
+            --text-secondary: #5F6B7C;    /* 次要文字 - Blueprint 灰 */
+            --border: #D3D8DE;            /* 边框色 - Blueprint 灰 */
+            --shadow: 0 1px 2px rgba(17, 20, 24, 0.1), 0 1px 1px rgba(17, 20, 24, 0.15); /* Blueprint 阴影 */
         }
 
         /* ===== 基础样式重置 ===== */
@@ -226,20 +228,10 @@
         }
 
         #btn-new-task {
-            padding: 10px 20px;
-            border: none;
-            border-radius: 8px;
-            background-color: var(--primary);
-            color: #ffffff;
+            padding: 5px 10px;
             font-size: 14px;
             font-weight: 500;
             cursor: pointer;
-            transition: all 0.2s ease;
-        }
-
-        #btn-new-task:hover {
-            background-color: #2563eb;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
         }
 
         #tasks-container {
@@ -364,22 +356,7 @@
         }
 
         .task-btn {
-            padding: 8px 16px;
-            border: none;
-            border-radius: 6px;
-            font-size: 14px;
-            font-weight: 500;
             cursor: pointer;
-            transition: all 0.2s ease;
-        }
-
-        .task-btn:hover {
-            transform: translateY(-1px);
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-        }
-
-        .task-btn:active {
-            transform: translateY(0);
         }
 
         .task-btn-start {
@@ -645,13 +622,6 @@
         }
 
         .banner-btn {
-            padding: 10px 20px;
-            border: none;
-            border-radius: 8px;
-            font-size: 14px;
-            font-weight: 500;
-            cursor: pointer;
-            transition: all 0.2s ease;
             background: rgba(255, 255, 255, 0.2);
             color: #ffffff;
         }
@@ -960,28 +930,28 @@
 
         <!-- 统计概览卡片行 -->
         <div id="stats-container">
-            <div class="stat-card">
+            <div class="stat-card bp5-card bp5-elevation-1">
                 <div class="stat-label">任务数</div>
                 <div class="stat-value">
                     <span>0</span>
                     <span class="stat-unit">个</span>
                 </div>
             </div>
-            <div class="stat-card">
+            <div class="stat-card bp5-card bp5-elevation-1">
                 <div class="stat-label">总工时</div>
                 <div class="stat-value">
                     <span>0</span>
                     <span class="stat-unit">小时</span>
                 </div>
             </div>
-            <div class="stat-card">
+            <div class="stat-card bp5-card bp5-elevation-1">
                 <div class="stat-label">人天</div>
                 <div class="stat-value">
                     <span>0</span>
                     <span class="stat-unit">天</span>
                 </div>
             </div>
-            <div class="stat-card">
+            <div class="stat-card bp5-card bp5-elevation-1">
                 <div class="stat-label">休息</div>
                 <div class="stat-value">
                     <span>0</span>
@@ -992,20 +962,20 @@
 
         <!-- 数据导出导入按钮 -->
         <div id="data-actions" style="margin-bottom: 24px; display: flex; gap: 12px;">
-            <button id="export-btn" class="task-btn" style="background: var(--primary); color: #ffffff;">
+            <button id="export-btn" class="task-btn bp5-button bp5-intent-primary">
                 📥 导出数据
             </button>
-            <button id="import-btn" class="task-btn" style="background: var(--success); color: #ffffff;">
+            <button id="import-btn" class="task-btn bp5-button bp5-intent-success">
                 📤 导入数据
             </button>
             <input type="file" id="import-file" accept=".json" style="display: none;">
         </div>
 
         <!-- 任务卡片列表区域 -->
-        <div class="tasks-section" id="dashboard-tasks-section">
+        <div class="tasks-section bp5-card bp5-elevation-1" id="dashboard-tasks-section">
             <div class="tasks-section-header">
                 <h3 class="tasks-section-title">今日任务</h3>
-                <button id="btn-new-task">+ 新建任务</button>
+                <button id="btn-new-task" class="bp5-button bp5-intent-primary">+ 新建任务</button>
             </div>
             <div id="tasks-container">
                 <div class="empty-state">
@@ -1055,7 +1025,7 @@
             </div>
 
             <!-- 历史任务列表 -->
-            <div class="tasks-section">
+            <div class="tasks-section bp5-card bp5-elevation-1">
                 <div class="tasks-section-header">
                     <h3 class="tasks-section-title" id="history-tasks-title">该日期任务</h3>
                 </div>
@@ -1073,15 +1043,24 @@
             <div class="header-bar">
                 <h1 id="settings-header-title">设置</h1>
             </div>
-            <div class="settings-section">
+            <div class="settings-section bp5-card bp5-elevation-1">
+                <h3 class="settings-section-title">外观设置</h3>
+                <div style="margin-bottom: 20px;">
+                    <label for="theme-select" style="display: block; font-size: 14px; color: var(--text-secondary); margin-bottom: 8px;">主题模式</label>
+                    <select id="theme-select" class="bp5-html-select">
+                        <option value="light">亮色</option>
+                        <option value="dark">暗色</option>
+                        <option value="system">跟随系统</option>
+                    </select>
+                </div>
                 <h3 class="settings-section-title">休息时段设置</h3>
                 <div id="break-periods-list">
                     <!-- 休息时段列表将在这里渲染 -->
                 </div>
-                <button id="btn-add-break-period" class="task-btn task-btn-start" style="margin-top: 12px;">+ 添加休息时段</button>
+                <button id="btn-add-break-period" class="task-btn task-btn-start bp5-button bp5-intent-primary" style="margin-top: 12px;">+ 添加休息时段</button>
                 <div class="settings-actions">
-                    <button id="btn-save-settings" class="task-btn task-btn-start">保存设置</button>
-                    <button id="btn-back-to-dashboard" class="task-btn" style="background: #e5e7eb; color: var(--text-primary);">返回 Dashboard</button>
+                    <button id="btn-save-settings" class="task-btn task-btn-start bp5-button bp5-intent-success">保存设置</button>
+                    <button id="btn-back-to-dashboard" class="task-btn bp5-button">返回 Dashboard</button>
                 </div>
             </div>
         </div>
@@ -1307,16 +1286,16 @@
             let buttonsHTML = '';
             if (!readonly) {
                 if (task.status === 'idle') {
-                    buttonsHTML = `<button class="task-btn task-btn-start" data-action="start" data-task-id="${task.id}">▶ 开始</button>`;
+                    buttonsHTML = `<button class="task-btn task-btn-start bp5-button bp5-intent-success" data-action="start" data-task-id="${task.id}">▶ 开始</button>`;
                 } else if (task.status === 'running') {
                     buttonsHTML = `
-                        <button class="task-btn task-btn-pause" data-action="pause" data-task-id="${task.id}">⏸ 暂停</button>
-                        <button class="task-btn task-btn-complete" data-action="complete" data-task-id="${task.id}">✓ 结束</button>
+                        <button class="task-btn task-btn-pause bp5-button bp5-intent-warning" data-action="pause" data-task-id="${task.id}">⏸ 暂停</button>
+                        <button class="task-btn task-btn-complete bp5-button bp5-intent-danger" data-action="complete" data-task-id="${task.id}">✓ 结束</button>
                     `;
                 } else if (task.status === 'paused') {
                     buttonsHTML = `
-                        <button class="task-btn task-btn-resume" data-action="resume" data-task-id="${task.id}">▶ 继续</button>
-                        <button class="task-btn task-btn-complete" data-action="complete" data-task-id="${task.id}">✓ 结束</button>
+                        <button class="task-btn task-btn-resume bp5-button bp5-intent-success" data-action="resume" data-task-id="${task.id}">▶ 继续</button>
+                        <button class="task-btn task-btn-complete bp5-button bp5-intent-danger" data-action="complete" data-task-id="${task.id}">✓ 结束</button>
                     `;
                 }
             }
@@ -1331,7 +1310,7 @@
             return `
                 <div class="task-card-header">
                     <h3 class="task-name">${escapeHtml(task.taskName)}</h3>
-                    <span class="task-status ${statusClass}">${statusText[task.status]}</span>
+                    <span class="task-status ${statusClass} bp5-tag ${task.status === 'running' ? 'bp5-intent-success' : task.status === 'paused' ? 'bp5-intent-warning' : task.status === 'completed' ? 'bp5-minimal' : ''}">${statusText[task.status]}</span>
                 </div>
                 <div class="task-timer ${timerHidden}" data-task-timer="${task.id}">00:00:00</div>
                 <div class="task-duration">${durationText}</div>
@@ -1382,7 +1361,7 @@
                 // 构建时间轴进度条
                 const timelineHTML = buildTimelineHTML(segment, task);
 
-                const deleteBtnHTML = readonly ? '' : `<button class="segment-delete-btn" data-delete-segment="${segment.id}" data-task-id="${task.id}" title="删除时间段">×</button>`;
+                const deleteBtnHTML = readonly ? '' : `<button class="segment-delete-btn bp5-button bp5-minimal bp5-intent-danger bp5-small" data-delete-segment="${segment.id}" data-task-id="${task.id}" title="删除时间段">×</button>`;
 
                 html += `
                     <div class="segment-item ${isRunning ? 'running' : ''}" data-segment-id="${segment.id}">
@@ -1400,7 +1379,7 @@
             // 添加时间段按钮（只读模式下不显示）
             if (!readonly) {
                 html += `
-                    <button class="segment-add-btn" data-add-segment="${task.id}">
+                    <button class="segment-add-btn bp5-button bp5-minimal bp5-intent-primary" data-add-segment="${task.id}">
                         <span>+</span>
                         <span>添加时间段</span>
                     </button>
@@ -2042,8 +2021,8 @@
                     </div>
                     <div class="segment-form-error" data-form-error></div>
                     <div class="segment-form-actions">
-                        <button class="segment-form-btn segment-form-btn-cancel" data-form-cancel>取消</button>
-                        <button class="segment-form-btn segment-form-btn-save" data-form-save>保存</button>
+                        <button class="segment-form-btn segment-form-btn-cancel bp5-button" data-form-cancel>取消</button>
+                        <button class="segment-form-btn segment-form-btn-save bp5-button bp5-intent-success" data-form-save>保存</button>
                     </div>
                 </div>
             `;
@@ -2297,8 +2276,8 @@
                         <div class="active-task-timer" data-banner-timer>${formatDuration(elapsed)}</div>
                     </div>
                     <div class="active-task-actions">
-                        <button class="banner-btn banner-btn-pause" data-action="pause" data-task-id="${runningTask.id}">⏸ 暂停</button>
-                        <button class="banner-btn banner-btn-complete" data-action="complete" data-task-id="${runningTask.id}">✓ 结束</button>
+                        <button class="banner-btn banner-btn-pause bp5-button bp5-intent-warning" data-action="pause" data-task-id="${runningTask.id}">⏸ 暂停</button>
+                        <button class="banner-btn banner-btn-complete bp5-button bp5-intent-danger" data-action="complete" data-task-id="${runningTask.id}">✓ 结束</button>
                     </div>
                 </div>
             `;
@@ -2520,7 +2499,7 @@
                         <label>颜色</label>
                         <input type="color" data-break-color="${index}" value="${period.color || '#f59e0b'}">
                     </div>
-                    <button class="break-period-delete-btn" data-delete-break="${index}" title="删除">×</button>
+                    <button class="break-period-delete-btn bp5-button bp5-minimal bp5-intent-danger bp5-small" data-delete-break="${index}" title="删除">×</button>
                 </div>
             `;
         }
@@ -2784,6 +2763,7 @@
             }
 
             initDashboard();
+            initTheme();
         });
 
         // ==========================================
@@ -3648,6 +3628,88 @@
                 console.log('✅ 所有 V2-008 测试通过！');
             }
         })();
+
+        // ==========================================
+        // TASK-001: 主题切换系统
+        // ==========================================
+
+        const THEME_STORAGE_KEY = 'time-tracker-theme';
+
+        function getTheme() {
+            const saved = localStorage.getItem(THEME_STORAGE_KEY);
+            if (saved === 'light' || saved === 'dark' || saved === 'system') {
+                return saved;
+            }
+            return 'light';
+        }
+
+        function setTheme(theme) {
+            if (theme !== 'light' && theme !== 'dark' && theme !== 'system') {
+                theme = 'light';
+            }
+
+            localStorage.setItem(THEME_STORAGE_KEY, theme);
+
+            const body = document.body;
+            if (theme === 'dark') {
+                body.classList.add('bp5-dark');
+            } else if (theme === 'light') {
+                body.classList.remove('bp5-dark');
+            } else if (theme === 'system') {
+                const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+                if (prefersDark) {
+                    body.classList.add('bp5-dark');
+                } else {
+                    body.classList.remove('bp5-dark');
+                }
+            }
+
+            // 同步更新设置页面中的 select
+            const themeSelect = document.getElementById('theme-select');
+            if (themeSelect) {
+                themeSelect.value = theme;
+            }
+        }
+
+        function toggleTheme() {
+            const current = getTheme();
+            const next = current === 'light' ? 'dark' : 'light';
+            setTheme(next);
+        }
+
+        function initTheme() {
+            const theme = getTheme();
+            setTheme(theme);
+
+            // 监听系统主题变化
+            if (window.matchMedia) {
+                const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+                const handleChange = function(e) {
+                    if (getTheme() === 'system') {
+                        if (e.matches) {
+                            document.body.classList.add('bp5-dark');
+                        } else {
+                            document.body.classList.remove('bp5-dark');
+                        }
+                    }
+                };
+                if (mediaQuery.addEventListener) {
+                    mediaQuery.addEventListener('change', handleChange);
+                } else if (mediaQuery.addListener) {
+                    mediaQuery.addListener(handleChange);
+                }
+            }
+        }
+
+        // 绑定主题选择器事件
+        document.addEventListener('DOMContentLoaded', function() {
+            const themeSelect = document.getElementById('theme-select');
+            if (themeSelect) {
+                themeSelect.addEventListener('change', function() {
+                    setTheme(this.value);
+                });
+            }
+        });
 
         console.log('V2 Modern Dashboard UI 已加载');
     </script>
