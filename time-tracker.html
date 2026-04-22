@@ -1645,7 +1645,6 @@
                     buttonsHTML = `<button class="task-btn task-btn-start bp5-button bp5-intent-success" data-action="start" data-task-id="${task.id}">▶ 开始</button>`;
                 } else if (task.status === 'running') {
                     buttonsHTML = `
-                        <button class="task-btn task-btn-pause bp5-button bp5-intent-warning" data-action="pause" data-task-id="${task.id}">⏸ 暂停</button>
                         <button class="task-btn task-btn-complete bp5-button bp5-intent-danger" data-action="complete" data-task-id="${task.id}">✓ 结束</button>
                     `;
                 } else if (task.status === 'paused') {
@@ -2980,7 +2979,6 @@
                         <div class="active-task-timer" data-banner-timer>${formatDuration(elapsed)}</div>
                     </div>
                     <div class="active-task-actions">
-                        <button class="banner-btn banner-btn-pause bp5-button bp5-intent-warning" data-action="pause" data-task-id="${runningTask.id}">⏸ 暂停</button>
                         <button class="banner-btn banner-btn-complete bp5-button bp5-intent-danger" data-action="complete" data-task-id="${runningTask.id}">✓ 结束</button>
                     </div>
                 </div>
