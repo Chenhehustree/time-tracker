@@ -429,6 +429,40 @@
             font-size: 16px;
             font-weight: 600;
             color: var(--text-primary);
+            cursor: pointer;
+            transition: color 0.2s ease;
+        }
+
+        .task-name:hover {
+            color: var(--primary);
+        }
+
+        .task-name-input {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--text-primary);
+            padding: 4px 8px;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            width: 100%;
+            min-width: 120px;
+            font-family: inherit;
+        }
+
+        .task-name-input:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+
+        .task-name-error {
+            color: var(--danger);
+            font-size: 12px;
+            margin-top: 4px;
+            display: none;
+        }
+
+        .task-name-error.show {
+            display: block;
         }
 
         .task-status {
@@ -1504,7 +1538,7 @@
             return `
                 <div class="task-card-header">
                     <div style="display:flex;align-items:center;flex:1;min-width:0;">
-                        <h3 class="task-name">${escapeHtml(task.taskName)}</h3>
+                        <h3 class="task-name" data-task-name="${task.id}">${escapeHtml(task.taskName)}</h3>
                     </div>
                     <div style="display:flex;align-items:center;flex-shrink:0;">
                         <span class="task-status ${statusClass} bp5-tag ${task.status === 'running' ? 'bp5-intent-success' : task.status === 'paused' ? 'bp5-intent-warning' : task.status === 'completed' ? 'bp5-minimal' : ''}">${statusText[task.status]}</span>
@@ -2071,6 +2105,12 @@
 
             // 只读模式下不绑定操作按钮
             if (!readonly) {
+                // 绑定任务名称点击编辑事件 (TASK-006)
+                const taskNameEl = card.querySelector(`[data-task-name="${task.id}"]`);
+                if (taskNameEl) {
+                    bindTaskNameClick(taskNameEl);
+                }
+
                 const buttons = card.querySelectorAll('.task-btn');
                 buttons.forEach(btn => {
                     btn.addEventListener('click', function(e) {
@@ -2302,6 +2342,140 @@
             // 更新 Dashboard 统计
             updateDashboardStats();
             updateActiveTaskBanner();
+        }
+
+        // ----- 任务名称编辑 (TASK-006) -----
+        function enableTaskNameEdit(task, nameElement) {
+            const originalName = task.taskName;
+            const parent = nameElement.parentElement;
+
+            // Create input element
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.className = 'task-name-input bp5-input';
+            input.value = originalName;
+            input.dataset.taskNameInput = task.id;
+
+            // Create error hint
+            const errorEl = document.createElement('div');
+            errorEl.className = 'task-name-error';
+            errorEl.textContent = '请输入任务名称';
+            errorEl.dataset.taskNameError = task.id;
+
+            // Replace h3 with input wrapper
+            const wrapper = document.createElement('div');
+            wrapper.style.flex = '1';
+            wrapper.style.minWidth = '0';
+            wrapper.appendChild(input);
+            wrapper.appendChild(errorEl);
+
+            parent.replaceChild(wrapper, nameElement);
+
+            // Focus and select all text
+            input.focus();
+            input.select();
+
+            // Handle blur - save
+            input.addEventListener('blur', function() {
+                saveTaskName(task, input.value, originalName, input, errorEl, parent, wrapper);
+            });
+
+            // Handle keydown - Enter to save, Escape to cancel
+            input.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    input.blur();
+                } else if (e.key === 'Escape') {
+                    e.preventDefault();
+                    cancelTaskNameEdit(originalName, parent, wrapper);
+                }
+            });
+
+            // Prevent click propagation to avoid triggering other card interactions
+            input.addEventListener('click', function(e) {
+                e.stopPropagation();
+            });
+        }
+
+        function saveTaskName(task, newName, originalName, input, errorEl, parent, wrapper) {
+            const trimmedName = newName.trim();
+
+            // Validation: empty name
+            if (!trimmedName) {
+                input.classList.add('bp5-intent-danger');
+                errorEl.classList.add('show');
+                // Keep focus on input so user can correct
+                setTimeout(function() {
+                    input.focus();
+                }, 0);
+                return;
+            }
+
+            // If name hasn't changed, just revert
+            if (trimmedName === originalName) {
+                cancelTaskNameEdit(originalName, parent, wrapper);
+                return;
+            }
+
+            // Update task object
+            task.taskName = trimmedName;
+
+            // Save to localStorage
+            const taskIndex = todayTasks.findIndex(t => t.id === task.id);
+            if (taskIndex !== -1) {
+                todayTasks[taskIndex].taskName = trimmedName;
+                saveTodayTasks(todayTasks);
+            }
+
+            // Restore h3 element with new name
+            restoreTaskNameElement(task, parent, wrapper);
+        }
+
+        function cancelTaskNameEdit(originalName, parent, wrapper) {
+            // Create h3 with original name
+            const h3 = document.createElement('h3');
+            h3.className = 'task-name';
+            h3.textContent = originalName;
+            h3.dataset.taskName = '';
+            // We need to find the task id to set the data attribute
+            // The wrapper's parent is the task-name-wrapper div
+            // We can get the task id from the card id
+            const card = parent.closest('.task-card');
+            if (card) {
+                const taskId = card.id.replace('task-card-', '');
+                h3.dataset.taskName = taskId;
+            }
+
+            parent.replaceChild(h3, wrapper);
+
+            // Re-bind click event
+            bindTaskNameClick(h3);
+        }
+
+        function restoreTaskNameElement(task, parent, wrapper) {
+            const h3 = document.createElement('h3');
+            h3.className = 'task-name';
+            h3.textContent = task.taskName;
+            h3.dataset.taskName = task.id;
+
+            parent.replaceChild(h3, wrapper);
+
+            // Re-bind click event
+            bindTaskNameClick(h3);
+        }
+
+        function bindTaskNameClick(nameElement) {
+            if (!nameElement) return;
+            nameElement.addEventListener('click', function(e) {
+                e.stopPropagation();
+                const card = nameElement.closest('.task-card');
+                if (!card) return;
+                const taskId = card.id.replace('task-card-', '');
+                const task = todayTasks.find(t => t.id === taskId);
+                if (task) {
+                    enableTaskNameEdit(task, nameElement);
+                }
+            });
         }
 
         // ----- 删除时间段 (V2-004) -----
