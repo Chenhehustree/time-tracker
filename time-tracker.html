@@ -1,894 +1,2738 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="zh-CN" class="antialiased">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>工作计时器</title>
+    
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    
+    <!-- Scripts -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://code.iconify.design/iconify-icon/1.0.7/iconify-icon.min.js"></script>
+
     <style>
-        /* ===== CSS 自定义属性 ===== */
-        :root {
-            --primary-color: #2563eb;
-            --primary-hover: #1d4ed8;
-            --secondary-color: #6b7280;
-            --bg-color: #ffffff;
-            --text-color: #1f2937;
-            --border-color: #e5e7eb;
-            --card-bg: #f9fafb;
-            --break-color-1: #FFD93D;
-            --break-color-2: #FF6B6B;
-            --success-color: #10b981;
-            --warning-color: #f59e0b;
-            --danger-color: #ef4444;
-            --shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-            --shadow-hover: 0 4px 6px rgba(0, 0, 0, 0.1);
-            --radius: 8px;
-            --gap: 16px;
+        /* 保留部分必须由 JS 动态切换的核心状态样式与伪元素 */
+        .nav-item.active {
+            background-color: #eff6ff;
+            color: #2563eb;
         }
-
-        /* ===== 基础样式重置 ===== */
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
+        .nav-item.active iconify-icon {
+            color: #2563eb;
         }
-
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-            background-color: var(--bg-color);
-            color: var(--text-color);
-            line-height: 1.6;
-            padding: 20px;
-        }
-
-        /* ===== 容器布局 ===== */
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-        }
-
-        h1 {
-            text-align: center;
-            margin-bottom: 24px;
-            color: var(--text-color);
-            font-size: 28px;
-        }
-
-        /* ===== 区域通用样式 ===== */
-        .section {
-            background: var(--card-bg);
-            border: 1px solid var(--border-color);
-            border-radius: var(--radius);
-            padding: 20px;
-            margin-bottom: var(--gap);
-            box-shadow: var(--shadow);
-        }
-
-        .section-title {
-            font-size: 18px;
-            font-weight: 600;
-            margin-bottom: 16px;
-            color: var(--text-color);
-        }
-
-        /* ===== 按钮样式 ===== */
-        .btn {
-            padding: 10px 20px;
-            border: none;
-            border-radius: var(--radius);
-            cursor: pointer;
-            font-size: 14px;
-            font-weight: 500;
+        
+        .task-card {
             transition: all 0.2s ease;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            gap: 6px;
+        }
+        .task-card.status-running {
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 1px #3b82f6;
+        }
+        .task-card.status-paused {
+            border-color: #f59e0b;
+        }
+        
+        .task-more-menu.visible {
+            display: block;
         }
 
-        .btn-primary {
-            background-color: var(--primary-color);
-            color: white;
-        }
-
-        .btn-primary:hover {
-            background-color: var(--primary-hover);
-            box-shadow: var(--shadow-hover);
-        }
-
-        .btn-secondary {
-            background-color: var(--secondary-color);
-            color: white;
-        }
-
-        .btn-secondary:hover {
-            background-color: #4b5563;
-            box-shadow: var(--shadow-hover);
-        }
-
-        .btn-success {
-            background-color: var(--success-color);
-            color: white;
-        }
-
-        .btn-success:hover {
-            background-color: #059669;
-            box-shadow: var(--shadow-hover);
-        }
-
-        .btn-danger {
-            background-color: var(--danger-color);
-            color: white;
-        }
-
-        .btn-danger:hover {
-            background-color: #dc2626;
-            box-shadow: var(--shadow-hover);
-        }
-
-        .btn-small {
-            padding: 6px 12px;
-            font-size: 12px;
-        }
-
-        /* ===== 输入框样式 ===== */
-        .input {
-            padding: 10px 12px;
-            border: 1px solid var(--border-color);
-            border-radius: var(--radius);
-            font-size: 14px;
-            transition: border-color 0.2s ease;
-            width: 100%;
-        }
-
-        .input:focus {
-            outline: none;
-            border-color: var(--primary-color);
-            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
-        }
-
-        /* ===== 任务输入区 ===== */
-        .task-input-section {
-            display: flex;
-            gap: 12px;
-            flex-wrap: wrap;
-            align-items: center;
-        }
-
-        .task-input-section .input {
-            flex: 1;
-            min-width: 200px;
-        }
-
-        /* ===== 计时显示区 ===== */
-        .timer-display-section {
-            text-align: center;
-        }
-
-        .timer-display {
-            font-size: 64px;
-            font-weight: 700;
-            font-family: 'Courier New', monospace;
-            color: var(--primary-color);
-            letter-spacing: 4px;
-            margin: 20px 0;
-        }
-
-        /* ===== 今日记录列表区 ===== */
-        .records-table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 14px;
-        }
-
-        .records-table th,
-        .records-table td {
-            padding: 12px;
-            text-align: left;
-            border-bottom: 1px solid var(--border-color);
-        }
-
-        .records-table th {
-            background-color: var(--card-bg);
-            font-weight: 600;
-            color: var(--secondary-color);
-        }
-
-        .records-table tr:hover {
-            background-color: #f3f4f6;
-        }
-
-        .records-table .actions {
-            display: flex;
-            gap: 8px;
-        }
-
-        /* ===== 统计面板区 ===== */
-        .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: var(--gap);
-        }
-
-        .stat-card {
-            background: var(--bg-color);
-            border: 1px solid var(--border-color);
-            border-radius: var(--radius);
-            padding: 16px;
-            text-align: center;
-        }
-
-        .stat-label {
-            font-size: 14px;
-            color: var(--secondary-color);
-            margin-bottom: 8px;
-        }
-
-        .stat-value {
-            font-size: 32px;
-            font-weight: 700;
-            color: var(--primary-color);
-        }
-
-        .stat-unit {
-            font-size: 14px;
-            color: var(--secondary-color);
-            margin-left: 4px;
-        }
-
-        /* ===== 休息时段设置区 ===== */
-        .break-settings-list {
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-        }
-
-        .break-setting-item {
-            display: flex;
-            gap: 12px;
-            align-items: center;
-            flex-wrap: wrap;
-            padding: 12px;
-            background: var(--bg-color);
-            border-radius: var(--radius);
-            border: 1px solid var(--border-color);
-        }
-
-        .break-color-indicator {
-            width: 24px;
-            height: 24px;
-            border-radius: 50%;
-            flex-shrink: 0;
-        }
-
-        .break-setting-item .input {
-            width: auto;
-            flex: 1;
-            min-width: 100px;
-        }
-
-        .break-time-input {
-            width: 100px !important;
-        }
-
-        /* ===== 历史记录区 ===== */
-        .history-section {
-            display: flex;
-            flex-direction: column;
-            gap: 16px;
-        }
-
-        .history-header {
-            display: flex;
-            gap: 12px;
-            align-items: center;
-            flex-wrap: wrap;
-        }
-
-        .history-header .input {
-            width: auto;
-        }
-
-        /* ===== 数据操作区 ===== */
-        .data-operations {
-            display: flex;
-            gap: 12px;
-            flex-wrap: wrap;
-        }
-
-        .file-input-wrapper {
-            position: relative;
-            display: inline-block;
-        }
-
-        .file-input-wrapper input[type="file"] {
-            position: absolute;
-            left: 0;
-            top: 0;
+        .segments-list {
+            max-height: 0;
             opacity: 0;
-            cursor: pointer;
-            width: 100%;
-            height: 100%;
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+        .segments-list.expanded {
+            max-height: 600px;
+            opacity: 1;
+            overflow-y: auto;
         }
 
-        /* ===== 响应式基础 ===== */
-        @media (max-width: 768px) {
-            body {
-                padding: 12px;
-            }
-
-            .timer-display {
-                font-size: 48px;
-            }
-
-            .task-input-section {
-                flex-direction: column;
-            }
-
-            .task-input-section .input,
-            .task-input-section .btn {
-                width: 100%;
-            }
-
-            .records-table {
-                font-size: 12px;
-            }
-
-            .records-table th,
-            .records-table td {
-                padding: 8px;
-            }
-
-            .break-setting-item {
-                flex-direction: column;
-                align-items: stretch;
-            }
-
-            .break-setting-item .input,
-            .break-time-input {
-                width: 100% !important;
-            }
-
-            .stats-grid {
-                grid-template-columns: 1fr;
-            }
+        .segments-panel {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease;
+        }
+        .segments-panel.expanded {
+            max-height: 2000px;
         }
 
-        @media (max-width: 480px) {
-            .timer-display {
-                font-size: 36px;
-                letter-spacing: 2px;
-            }
+        .segments-toggle-icon {
+            transition: transform 0.3s ease;
+        }
+        .segments-toggle.expanded .segments-toggle-icon {
+            transform: rotate(180deg);
+        }
 
-            .section {
-                padding: 16px;
-            }
+        /* 时间轴拖拽控件 */
+        .timeline-tooltip {
+            position: fixed;
+            background: #1e293b;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-size: 11px;
+            pointer-events: none;
+            z-index: 1000;
+            white-space: nowrap;
+            transform: translateX(-50%);
+            margin-top: -30px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+        .timeline-tooltip::after {
+            content: '';
+            position: absolute;
+            top: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            border: 4px solid transparent;
+            border-top-color: #1e293b;
+        }
+        .handle.conflict {
+            border-color: #ef4444 !important;
+            background: #ef4444 !important;
+        }
 
-            .data-operations {
-                flex-direction: column;
-            }
-
-            .data-operations .btn,
-            .file-input-wrapper {
-                width: 100%;
-            }
+        /* 隐藏滚动条让界面更清爽 */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
         }
     </style>
 </head>
-<body>
-    <div class="container">
-        <h1>工作计时器</h1>
+<body class="bg-slate-50 text-slate-900 overflow-x-hidden selection:bg-blue-100 selection:text-blue-900" style="font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;">
 
-        <!-- ===== 任务输入区 ===== -->
-        <section class="section" id="task-input-section">
-            <h2 class="section-title">任务</h2>
-            <div class="task-input-section">
-                <input type="text" 
-                       class="input" 
-                       id="task-name-input" 
-                       placeholder="请输入任务名称..."
-                       autocomplete="off">
-                <button class="btn btn-primary" id="start-stop-btn">开始计时</button>
+    <!-- ===== 侧边栏 ===== -->
+    <aside id="sidebar" class="fixed left-0 top-0 bottom-0 w-64 bg-white border-r border-slate-200 flex flex-col z-50">
+        <div class="px-6 py-6 border-b border-slate-100">
+            <h2 class="text-lg font-medium tracking-tight text-slate-900 flex items-center gap-2">
+                <iconify-icon icon="solar:stopwatch-linear" style="stroke-width:1.5;" class="text-blue-600 text-xl"></iconify-icon>
+                工作计时器
+            </h2>
+        </div>
+        <nav class="sidebar-nav flex-1 flex flex-col gap-1 p-4">
+            <div class="nav-item active flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-500 cursor-pointer transition-colors hover:text-slate-900 hover:bg-slate-50" id="nav-dashboard">
+                <iconify-icon icon="solar:pie-chart-2-linear" style="stroke-width:1.5;" class="text-[18px]"></iconify-icon>
+                <span>数据概览</span>
             </div>
-        </section>
-
-        <!-- ===== 计时显示区 ===== -->
-        <section class="section" id="timer-display-section">
-            <h2 class="section-title">当前计时</h2>
-            <div class="timer-display-section">
-                <div class="timer-display" id="timer-display">00:00</div>
+            <div class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-500 cursor-pointer transition-colors hover:text-slate-900 hover:bg-slate-50" id="nav-today">
+                <iconify-icon icon="solar:checklist-minimalistic-linear" style="stroke-width:1.5;" class="text-[18px]"></iconify-icon>
+                <span>今日任务</span>
             </div>
-        </section>
+            <div class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-500 cursor-pointer transition-colors hover:text-slate-900 hover:bg-slate-50" id="nav-history">
+                <iconify-icon icon="solar:history-linear" style="stroke-width:1.5;" class="text-[18px]"></iconify-icon>
+                <span>历史记录</span>
+            </div>
+            <div class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-500 cursor-pointer transition-colors hover:text-slate-900 hover:bg-slate-50" id="nav-settings">
+                <iconify-icon icon="solar:settings-linear" style="stroke-width:1.5;" class="text-[18px]"></iconify-icon>
+                <span>系统设置</span>
+            </div>
+        </nav>
+    </aside>
 
-        <!-- ===== 今日记录列表区 ===== -->
-        <section class="section" id="records-section">
-            <h2 class="section-title">今日记录</h2>
-            <table class="records-table" id="records-table">
-                <thead>
-                    <tr>
-                        <th>任务名</th>
-                        <th>开始时间</th>
-                        <th>结束时间</th>
-                        <th>原始时长</th>
-                        <th>操作</th>
-                    </tr>
-                </thead>
-                <tbody id="records-tbody">
-                    <!-- 记录行将通过 JavaScript 动态添加 -->
-                </tbody>
-            </table>
-        </section>
+    <!-- ===== 主内容区 ===== -->
+    <main id="main-content" class="ml-64 p-8 min-h-screen">
+        
+        <!-- 顶部标题栏 -->
+        <div class="header-bar flex items-center justify-between mb-8 pb-4 border-b border-slate-200">
+            <h1 id="header-title" class="text-2xl font-medium tracking-tight text-slate-900">数据概览</h1>
+            <span id="header-date" class="text-sm font-medium text-slate-500 bg-white px-3 py-1.5 rounded-md border border-slate-200 shadow-sm">2026年4月21日 星期一</span>
+        </div>
 
-        <!-- ===== 统计面板区 ===== -->
-        <section class="section" id="stats-section">
-            <h2 class="section-title">今日统计</h2>
-            <div class="stats-grid">
-                <div class="stat-card">
-                    <div class="stat-label">总在线时间</div>
-                    <div class="stat-value">
-                        <span id="total-online-time">0</span>
-                        <span class="stat-unit">小时</span>
+        <!-- 当前进行中的任务高亮区域 -->
+        <div id="active-task-banner" class="hidden mb-8 bg-gradient-to-r from-blue-600 to-blue-500 rounded-2xl p-6 text-white shadow-lg shadow-blue-500/20 relative overflow-hidden">
+            <div class="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAiIGhlaWdodD0iMjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGNpcmNsZSBjeD0iMiIgY3k9IjIiIHI9IjEiIGZpbGw9InJnYmEoMjU1LDI1NSwyNTUsMC4xNSkiLz48L3N2Zz4=')] opacity-50"></div>
+            <div class="active-task-content relative z-10 flex justify-between items-center">
+                <div class="active-task-info">
+                    <div class="active-task-label text-xs font-medium text-blue-100 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                        <div class="w-1.5 h-1.5 rounded-full bg-white animate-pulse"></div>
+                        当前进行中
+                    </div>
+                    <div class="active-task-name text-2xl font-medium tracking-tight mb-1">暂无进行中任务</div>
+                    <div class="active-task-timer text-3xl font-medium tabular-nums tracking-tight opacity-90" data-banner-timer>00:00:00</div>
+                </div>
+                <div class="active-task-actions">
+                    <!-- 动态生成按钮 -->
+                </div>
+            </div>
+        </div>
+
+        <!-- 统计概览卡片行 -->
+        <div id="stats-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5 mb-8">
+            <div class="stat-card bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
+                <div class="flex items-center gap-3 mb-3">
+                    <div class="flex items-center justify-center w-8 h-8 rounded-lg bg-blue-50 text-blue-600">
+                        <iconify-icon icon="solar:folder-with-files-linear" style="stroke-width:1.5;" class="text-lg"></iconify-icon>
+                    </div>
+                    <div class="text-xs font-medium text-slate-500 uppercase tracking-wider stat-label">任务数</div>
+                </div>
+                <div class="text-3xl font-medium tracking-tight text-slate-900 stat-value">
+                    <span>0</span><span class="text-sm font-normal text-slate-500 ml-1 stat-unit">个</span>
+                </div>
+            </div>
+            <div class="stat-card bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
+                <div class="flex items-center gap-3 mb-3">
+                    <div class="flex items-center justify-center w-8 h-8 rounded-lg bg-blue-50 text-blue-600">
+                        <iconify-icon icon="solar:clock-circle-linear" style="stroke-width:1.5;" class="text-lg"></iconify-icon>
+                    </div>
+                    <div class="text-xs font-medium text-slate-500 uppercase tracking-wider stat-label">总工时</div>
+                </div>
+                <div class="text-3xl font-medium tracking-tight text-slate-900 stat-value">
+                    <span>0</span><span class="text-sm font-normal text-slate-500 ml-1 stat-unit">小时</span>
+                </div>
+            </div>
+            <div class="stat-card bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
+                <div class="flex items-center gap-3 mb-3">
+                    <div class="flex items-center justify-center w-8 h-8 rounded-lg bg-blue-50 text-blue-600">
+                        <iconify-icon icon="solar:users-group-rounded-linear" style="stroke-width:1.5;" class="text-lg"></iconify-icon>
+                    </div>
+                    <div class="text-xs font-medium text-slate-500 uppercase tracking-wider stat-label">人天</div>
+                </div>
+                <div class="text-3xl font-medium tracking-tight text-slate-900 stat-value">
+                    <span>0</span><span class="text-sm font-normal text-slate-500 ml-1 stat-unit">天</span>
+                </div>
+            </div>
+            <div class="stat-card bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
+                <div class="flex items-center gap-3 mb-3">
+                    <div class="flex items-center justify-center w-8 h-8 rounded-lg bg-slate-100 text-slate-600">
+                        <iconify-icon icon="solar:cup-hot-linear" style="stroke-width:1.5;" class="text-lg"></iconify-icon>
+                    </div>
+                    <div class="text-xs font-medium text-slate-500 uppercase tracking-wider stat-label">休息</div>
+                </div>
+                <div class="text-3xl font-medium tracking-tight text-slate-900 stat-value">
+                    <span>0</span><span class="text-sm font-normal text-slate-500 ml-1 stat-unit">小时</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 数据导出导入按钮 -->
+        <div id="data-actions" class="flex gap-3 mb-8">
+            <button id="export-btn" class="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 hover:text-slate-900 transition-colors shadow-sm">
+                <iconify-icon icon="solar:download-square-linear" style="stroke-width:1.5;" class="text-lg text-slate-400"></iconify-icon>
+                导出数据
+            </button>
+            <button id="import-btn" class="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 hover:text-slate-900 transition-colors shadow-sm">
+                <iconify-icon icon="solar:upload-square-linear" style="stroke-width:1.5;" class="text-lg text-slate-400"></iconify-icon>
+                导入数据
+            </button>
+            <input type="file" id="import-file" accept=".json" class="hidden">
+        </div>
+
+        <!-- 任务卡片列表区域 -->
+        <div class="tasks-section" id="dashboard-tasks-section">
+            <div class="tasks-section-header flex justify-between items-center mb-6">
+                <h3 class="tasks-section-title text-lg font-medium tracking-tight text-slate-900">今日任务列表</h3>
+                <button id="btn-new-task" class="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors shadow-sm shadow-blue-600/20">
+                    <iconify-icon icon="solar:add-circle-linear" style="stroke-width:1.5;" class="text-lg"></iconify-icon>
+                    新建任务
+                </button>
+            </div>
+            <div id="tasks-container" class="space-y-4 min-h-[200px]">
+                <div class="empty-state flex flex-col items-center justify-center py-20 px-4 bg-white border border-slate-200 border-dashed rounded-xl">
+                    <div class="w-12 h-12 bg-slate-50 rounded-full flex items-center justify-center mb-4">
+                        <iconify-icon icon="solar:document-add-linear" style="stroke-width:1.5;" class="text-2xl text-slate-400"></iconify-icon>
+                    </div>
+                    <div class="empty-state-text text-sm font-medium text-slate-900 mb-1">暂无任务</div>
+                    <div class="empty-state-hint text-xs text-slate-500">点击右上角"新建任务"开始计时</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 历史记录视图（默认隐藏） -->
+        <div id="history-view" class="hidden animate-fade-in">
+            <div class="header-bar flex items-center justify-between mb-8 pb-4 border-b border-slate-200">
+                <h1 id="history-header-title" class="text-2xl font-medium tracking-tight text-slate-900">历史记录</h1>
+                <input type="date" id="history-date-picker" class="px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm text-slate-700 font-medium focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 shadow-sm cursor-pointer">
+            </div>
+
+            <!-- 历史统计概览 -->
+            <div id="history-stats-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5 mb-8">
+                <!-- 结构与上面类似，复用相同的样式类即可 -->
+                <div class="stat-card bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
+                    <div class="text-xs font-medium text-slate-500 uppercase tracking-wider stat-label mb-2">任务数</div>
+                    <div class="text-3xl font-medium tracking-tight text-slate-900 stat-value"><span id="history-stat-task-count">0</span><span class="text-sm font-normal text-slate-500 ml-1 stat-unit">个</span></div>
+                </div>
+                <div class="stat-card bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
+                    <div class="text-xs font-medium text-slate-500 uppercase tracking-wider stat-label mb-2">总工时</div>
+                    <div class="text-3xl font-medium tracking-tight text-slate-900 stat-value"><span id="history-stat-total-hours">0</span><span class="text-sm font-normal text-slate-500 ml-1 stat-unit">小时</span></div>
+                </div>
+                <div class="stat-card bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
+                    <div class="text-xs font-medium text-slate-500 uppercase tracking-wider stat-label mb-2">人天</div>
+                    <div class="text-3xl font-medium tracking-tight text-slate-900 stat-value"><span id="history-stat-person-days">0</span><span class="text-sm font-normal text-slate-500 ml-1 stat-unit">天</span></div>
+                </div>
+                <div class="stat-card bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
+                    <div class="text-xs font-medium text-slate-500 uppercase tracking-wider stat-label mb-2">休息</div>
+                    <div class="text-3xl font-medium tracking-tight text-slate-900 stat-value"><span id="history-stat-break-hours">0</span><span class="text-sm font-normal text-slate-500 ml-1 stat-unit">小时</span></div>
+                </div>
+            </div>
+
+            <!-- 历史任务列表 -->
+            <div class="tasks-section">
+                <div class="tasks-section-header mb-6">
+                    <h3 class="tasks-section-title text-lg font-medium tracking-tight text-slate-900" id="history-tasks-title">该日期任务</h3>
+                </div>
+                <div id="history-tasks-container" class="space-y-4">
+                    <div class="empty-state flex flex-col items-center justify-center py-20 px-4 bg-white border border-slate-200 border-dashed rounded-xl">
+                        <div class="empty-state-text text-sm font-medium text-slate-900 mb-1">该日期暂无记录</div>
+                        <div class="empty-state-hint text-xs text-slate-500">选择其他日期查看</div>
                     </div>
                 </div>
-                <div class="stat-card">
-                    <div class="stat-label">有效工时</div>
-                    <div class="stat-value">
-                        <span id="effective-time">0</span>
-                        <span class="stat-unit">小时</span>
+            </div>
+        </div>
+
+        <!-- 设置视图（默认隐藏） -->
+        <div id="settings-view" class="hidden animate-fade-in max-w-3xl">
+            <div class="header-bar flex items-center justify-between mb-8 pb-4 border-b border-slate-200">
+                <h1 id="settings-header-title" class="text-2xl font-medium tracking-tight text-slate-900">系统设置</h1>
+            </div>
+            
+            <div class="settings-section bg-white border border-slate-200 rounded-xl p-8 shadow-sm">
+                <!-- 外观设置 -->
+                <div class="mb-10">
+                    <h3 class="text-sm font-medium tracking-tight text-slate-900 mb-4 flex items-center gap-2">
+                        <iconify-icon icon="solar:palette-linear" style="stroke-width:1.5;" class="text-slate-400"></iconify-icon>
+                        外观设置
+                    </h3>
+                    <div class="flex flex-col gap-2">
+                        <label for="theme-select" class="text-xs text-slate-500">主题模式 (该版本演示强制亮色)</label>
+                        <select id="theme-select" class="w-full max-w-xs px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
+                            <option value="light">亮色</option>
+                            <option value="dark">暗色</option>
+                            <option value="system">跟随系统</option>
+                        </select>
                     </div>
                 </div>
-                <div class="stat-card">
-                    <div class="stat-label">人天换算</div>
-                    <div class="stat-value">
-                        <span id="person-days">0</span>
-                        <span class="stat-unit">天</span>
+
+                <!-- 休息时段设置 -->
+                <div class="mb-8">
+                    <h3 class="text-sm font-medium tracking-tight text-slate-900 mb-4 flex items-center gap-2">
+                        <iconify-icon icon="solar:clock-circle-linear" style="stroke-width:1.5;" class="text-slate-400"></iconify-icon>
+                        默认休息时段设置
+                    </h3>
+                    <div id="break-periods-list" class="space-y-3">
+                        <!-- 休息时段列表将在这里渲染 -->
                     </div>
+                    <button id="btn-add-break-period" class="mt-4 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-blue-600 bg-blue-50 border border-transparent rounded-md hover:bg-blue-100 transition-colors">
+                        <iconify-icon icon="solar:add-circle-linear" style="stroke-width:1.5;"></iconify-icon>
+                        添加休息时段
+                    </button>
+                </div>
+
+                <div class="settings-actions pt-6 border-t border-slate-100 flex gap-3">
+                    <button id="btn-save-settings" class="inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors shadow-sm">保存设置</button>
+                    <button id="btn-back-to-dashboard" class="inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors shadow-sm">返回</button>
                 </div>
             </div>
-        </section>
+        </div>
+    </main>
 
-        <!-- ===== 休息时段设置区 ===== -->
-        <section class="section" id="break-settings-section">
-            <h2 class="section-title">休息时段设置</h2>
-            <div class="break-settings-list" id="break-settings-list">
-                <!-- 午休 -->
-                <div class="break-setting-item">
-                    <div class="break-color-indicator" style="background-color: #FFD93D;"></div>
-                    <input type="text" class="input" value="午休" placeholder="时段名称">
-                    <input type="time" class="input break-time-input" value="11:30">
-                    <span>至</span>
-                    <input type="time" class="input break-time-input" value="13:30">
-                    <button class="btn btn-small btn-danger">删除</button>
-                </div>
-                <!-- 晚间休息 -->
-                <div class="break-setting-item">
-                    <div class="break-color-indicator" style="background-color: #FF6B6B;"></div>
-                    <input type="text" class="input" value="晚间休息" placeholder="时段名称">
-                    <input type="time" class="input break-time-input" value="17:30">
-                    <span>至</span>
-                    <input type="time" class="input break-time-input" value="19:00">
-                    <button class="btn btn-small btn-danger">删除</button>
-                </div>
-            </div>
-        </section>
-
-        <!-- ===== 历史记录区 ===== -->
-        <section class="section" id="history-section">
-            <h2 class="section-title">历史记录</h2>
-            <div class="history-section">
-                <div class="history-header">
-                    <label for="history-date">选择日期：</label>
-                    <input type="date" class="input" id="history-date">
-                    <button class="btn btn-secondary" id="load-history-btn">加载记录</button>
-                </div>
-                <table class="records-table" id="history-table">
-                    <thead>
-                        <tr>
-                            <th>任务名</th>
-                            <th>开始时间</th>
-                            <th>结束时间</th>
-                            <th>原始时长</th>
-                            <th>操作</th>
-                        </tr>
-                    </thead>
-                    <tbody id="history-tbody">
-                        <!-- 历史记录将通过 JavaScript 动态加载 -->
-                    </tbody>
-                </table>
-            </div>
-        </section>
-
-        <!-- ===== 数据操作区 ===== -->
-        <section class="section" id="data-operations-section">
-            <h2 class="section-title">数据管理</h2>
-            <div class="data-operations">
-                <button class="btn btn-secondary" id="export-btn">导出数据</button>
-                <div class="file-input-wrapper">
-                    <button class="btn btn-secondary">导入数据</button>
-                    <input type="file" id="import-file" accept=".json">
-                </div>
-            </div>
-        </section>
-    </div>
-
-    <!-- ===== JavaScript 区域 ===== -->
+    <!-- ===== V2 版本 JavaScript 区域 ===== -->
     <script>
         /**
-         * 工作计时器应用 - JavaScript 主程序
+         * V2 版本 JavaScript 代码区域
          * 
-         * 功能模块说明：
-         * 
-         * 1. 计时器引擎 (Timer Engine)
-         *    - 开始/停止计时逻辑
-         *    - 时间计算与格式化
-         *    - 休息时段扣除
-         *    - 人天换算 (1人天 = 8小时)
-         * 
-         * 2. UI 控制器 (UI Controller)
-         *    - 更新计时显示
-         *    - 渲染记录列表
-         *    - 更新统计面板
-         *    - 处理用户交互
-         * 
-         * 3. 数据存储层 (Storage Layer)
-         *    - localStorage 读写
-         *    - 数据序列化/反序列化
-         *    - JSON 导出/导入
-         * 
-         * 4. 历史记录管理 (History Manager)
-         *    - 按日期查询记录
-         *    - 历史数据展示
-         * 
-         * 注意：当前为骨架版本，实际功能将在后续 TASK 中逐步实现
+         * 此区域用于 V2 Modern Dashboard UI 的交互逻辑
+         * 将在后续任务中逐步实现：
+         * - V2-003: 任务卡片渲染
+         * - V2-006: 数据统计
          */
 
-        // ========================================
-        // 常量定义
-        // ========================================
-        const HOURS_PER_DAY = 8; // 人天换算基数
-        const TIMER_STATE_KEY = 'timerState';
+        // ==========================================
+        // V2-002: 任务为中心的数据模型
+        // ==========================================
 
-        // ========================================
-        // DOM 元素引用
-        // ========================================
-        // 任务输入区
-        let taskNameInput;
-        let startStopBtn;
+        // ----- 常量定义 -----
+        const HOURS_PER_DAY = 8;
+        const STORAGE_KEY_PREFIX = 'time-tracker-tasks-';
 
-        // 计时显示区
-        let timerDisplay;
+        // ----- 工具函数 -----
+        function generateId() {
+            return Date.now().toString(36) + Math.random().toString(36).substr(2, 9);
+        }
 
-        // 今日记录列表区
-        // const recordsTable = document.getElementById('records-table');
-        // const recordsTbody = document.getElementById('records-tbody');
+        function formatDate(date) {
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        }
 
-        // 统计面板区
-        // const totalOnlineTimeEl = document.getElementById('total-online-time');
-        // const effectiveTimeEl = document.getElementById('effective-time');
-        // const personDaysEl = document.getElementById('person-days');
+        function todayKey() {
+            return STORAGE_KEY_PREFIX + formatDate(new Date());
+        }
 
-        // 休息时段设置区
-        // const breakSettingsList = document.getElementById('break-settings-list');
-
-        // 历史记录区
-        // const historyDateInput = document.getElementById('history-date');
-        // const loadHistoryBtn = document.getElementById('load-history-btn');
-        // const historyTable = document.getElementById('history-table');
-        // const historyTbody = document.getElementById('history-tbody');
-
-        // 数据操作区
-        // const exportBtn = document.getElementById('export-btn');
-        // const importFile = document.getElementById('import-file');
-
-        // ========================================
-        // 状态变量
-        // ========================================
-        let isRunning = false;
-        let startTime = null;
-        let timerInterval = null;
-        let currentTaskName = '';
-
-        // ========================================
-        // 计时器引擎函数
-        // ========================================
-
-        /**
-         * 将毫秒数格式化为时:分显示格式
-         * @param {number} elapsedMs - 已运行毫秒数
-         * @returns {string} 格式化后的时间字符串 (HH:MM)
-         */
-        function formatElapsedTime(elapsedMs) {
-            const totalSeconds = Math.floor(elapsedMs / 1000);
+        // ----- 时间格式化函数 -----
+        function formatDuration(milliseconds) {
+            const totalSeconds = Math.floor(milliseconds / 1000);
             const hours = Math.floor(totalSeconds / 3600);
             const minutes = Math.floor((totalSeconds % 3600) / 60);
-            return String(hours).padStart(2, '0') + ':' + String(minutes).padStart(2, '0');
+            const seconds = totalSeconds % 60;
+            return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
         }
 
-        /**
-         * 更新计时器显示
-         * @param {number} elapsedMs - 已运行毫秒数
-         */
-        function updateTimerDisplay(elapsedMs) {
-            if (!timerDisplay) return;
-            timerDisplay.textContent = formatElapsedTime(elapsedMs);
+        function formatDurationMinutes(minutes) {
+            if (minutes < 0) minutes = 0;
+            const hours = Math.floor(minutes / 60);
+            const mins = Math.floor(minutes % 60);
+            if (hours === 0) return `${mins}分`;
+            if (mins === 0) return `${hours}小时`;
+            return `${hours}小时${mins}分`;
         }
 
-        /**
-         * 每秒更新计时显示
-         */
-        function tick() {
-            if (!isRunning || !startTime) return;
-            const elapsedMs = Date.now() - startTime;
-            updateTimerDisplay(elapsedMs);
+        function formatNumber(num, decimals = 2) {
+            return num.toFixed(decimals);
         }
 
-        /**
-         * 保存计时状态到 localStorage
-         */
-        function saveTimerState() {
-            if (!isRunning || !startTime) {
-                localStorage.removeItem(TIMER_STATE_KEY);
+        // ----- Task 工厂函数 -----
+        function createTask(taskName) {
+            const trimmedName = (taskName || '').trim();
+            if (!trimmedName) {
+                console.error('[createTask] 任务名称不能为空');
+                throw new Error('任务名称不能为空');
+            }
+            return {
+                id: generateId(),
+                taskName: trimmedName,
+                status: 'idle',
+                createdAt: Date.now(),
+                segments: [],
+                totalRawDuration: 0,
+                totalEffectiveDuration: 0
+            };
+        }
+
+        // ----- TimeSegment 工厂函数 -----
+        function createSegment(startTime) {
+            return {
+                id: generateId(),
+                startTime: startTime,
+                endTime: null,
+                rawDuration: 0,
+                effectiveDuration: 0,
+                breakOverlapMinutes: 0
+            };
+        }
+
+        // ----- localStorage 操作 -----
+        function saveTasks(date, tasks) {
+            const key = STORAGE_KEY_PREFIX + formatDate(date);
+            localStorage.setItem(key, JSON.stringify(tasks));
+        }
+
+        function loadTasks(date) {
+            const key = STORAGE_KEY_PREFIX + formatDate(date);
+            const data = localStorage.getItem(key);
+            if (!data) return [];
+            try {
+                const parsed = JSON.parse(data);
+                return Array.isArray(parsed) ? parsed : [];
+            } catch (e) {
+                console.error('Failed to parse tasks data:', e);
+                return [];
+            }
+        }
+
+        function saveTodayTasks(tasks) {
+            if (!Array.isArray(tasks)) {
+                console.error('[saveTodayTasks] 传入的不是数组，拒绝保存');
                 return;
             }
-            const state = {
-                currentTask: currentTaskName,
-                startTime: startTime,
-                isRunning: true
-            };
+            const key = todayKey();
+            const data = JSON.stringify(tasks);
+            localStorage.setItem(key, data);
+            console.log('[saveTodayTasks] 已保存', tasks.length, '个任务到', key);
+        }
+
+        function loadTodayTasks() {
+            const data = localStorage.getItem(todayKey());
+            if (!data) return [];
             try {
-                localStorage.setItem(TIMER_STATE_KEY, JSON.stringify(state));
+                const parsed = JSON.parse(data);
+                return Array.isArray(parsed) ? parsed : [];
             } catch (e) {
-                console.error('保存计时状态失败:', e);
+                console.error('Failed to parse today tasks data:', e);
+                return [];
             }
         }
 
-        /**
-         * 从 localStorage 读取计时状态
-         * @returns {Object|null} 计时状态对象或 null
-         */
-        function loadTimerState() {
+        // ----- 任务状态机辅助函数 -----
+        function canStart(task) {
+            return task.status === 'idle' || task.status === 'paused' || task.status === 'completed';
+        }
+
+        function canPause(task) {
+            return task.status === 'running';
+        }
+
+        function canComplete(task) {
+            return task.status === 'running' || task.status === 'paused';
+        }
+
+        // ----- 时间段计算函数 -----
+        function calculateSegmentDuration(segment, endTime) {
+            if (!segment.startTime || !endTime) {
+                return 0;
+            }
+            return endTime - segment.startTime;
+        }
+
+        function updateTaskTotals(task) {
+            task.totalRawDuration = task.segments.reduce((sum, seg) => sum + (seg.rawDuration || 0), 0);
+            task.totalEffectiveDuration = task.segments.reduce((sum, seg) => sum + (seg.effectiveDuration || 0), 0);
+        }
+
+        // ==========================================
+        // V2-003: 任务卡片渲染与交互
+        // ==========================================
+
+        // ----- 全局状态 -----
+        window.todayTasks = [];
+        window.runningIntervals = {};
+
+        // ----- 新建任务 -----
+        function handleNewTask() {
+            console.log('[handleNewTask] 点击新建任务按钮');
             try {
-                const raw = localStorage.getItem(TIMER_STATE_KEY);
-                if (!raw) return null;
-                return JSON.parse(raw);
-            } catch (e) {
-                console.error('读取计时状态失败:', e);
-                return null;
-            }
-        }
+                // 确保 todayTasks 是数组
+                if (!Array.isArray(todayTasks)) {
+                    console.warn('[handleNewTask] todayTasks 不是数组，重置为空数组');
+                    todayTasks = [];
+                }
 
-        /**
-         * 清除 localStorage 中的计时状态
-         */
-        function clearTimerState() {
-            try {
-                localStorage.removeItem(TIMER_STATE_KEY);
-            } catch (e) {
-                console.error('清除计时状态失败:', e);
-            }
-        }
-
-        /**
-         * 开始计时
-         * @param {string} taskName - 任务名称
-         */
-        function startTimer(taskName) {
-            if (isRunning) return;
-
-            isRunning = true;
-            startTime = Date.now();
-            currentTaskName = taskName;
-
-            // 更新按钮为停止状态
-            startStopBtn.textContent = '停止计时';
-            startStopBtn.classList.remove('btn-primary');
-            startStopBtn.classList.add('btn-danger');
-
-            // 立即更新显示
-            updateTimerDisplay(0);
-
-            // 每秒更新
-            timerInterval = setInterval(tick, 1000);
-
-            // 保存状态
-            saveTimerState();
-        }
-
-        /**
-         * 停止计时
-         * @returns {Object|null} 计时记录对象
-         */
-        function stopTimer() {
-            if (!isRunning) return null;
-
-            const endTime = Date.now();
-            const record = {
-                taskName: currentTaskName,
-                startTime: startTime,
-                endTime: endTime
-            };
-
-            // 停止 interval
-            if (timerInterval) {
-                clearInterval(timerInterval);
-                timerInterval = null;
-            }
-
-            isRunning = false;
-
-            // 更新按钮为开始状态
-            startStopBtn.textContent = '开始计时';
-            startStopBtn.classList.remove('btn-danger');
-            startStopBtn.classList.add('btn-primary');
-
-            // 清除 localStorage 状态
-            clearTimerState();
-
-            console.log('计时记录:', record);
-            return record;
-        }
-
-        /**
-         * 恢复计时状态（页面加载时调用）
-         */
-        function restoreTimerState() {
-            const state = loadTimerState();
-            if (!state || !state.isRunning) return;
-
-            isRunning = true;
-            startTime = state.startTime;
-            currentTaskName = state.currentTask;
-
-            // 更新按钮为停止状态
-            startStopBtn.textContent = '停止计时';
-            startStopBtn.classList.remove('btn-primary');
-            startStopBtn.classList.add('btn-danger');
-
-            // 更新显示（包含已运行时间）
-            tick();
-
-            // 启动 interval 继续计时
-            timerInterval = setInterval(tick, 1000);
-        }
-
-        /**
-         * 处理开始/停止按钮点击
-         */
-        function handleStartStopClick() {
-            if (isRunning) {
-                stopTimer();
-            } else {
-                const taskName = taskNameInput.value.trim();
-                if (!taskName) {
-                    alert('请输入任务名称');
+                const taskName = prompt('请输入任务名称：');
+                console.log('[handleNewTask] prompt 返回值:', taskName);
+                
+                if (!taskName || !taskName.trim()) {
+                    console.log('[handleNewTask] 用户取消或输入为空');
                     return;
                 }
-                startTimer(taskName);
+
+                const newTask = createTask(taskName);
+                console.log('[handleNewTask] 创建任务对象:', newTask.id, newTask.taskName);
+                
+                todayTasks.push(newTask);
+                saveTodayTasks(todayTasks);
+                console.log('[handleNewTask] 任务已保存到 localStorage');
+
+                renderTaskCard(newTask);
+                console.log('[handleNewTask] 任务卡片已渲染');
+                
+                updateDashboardStats();
+                updateActiveTaskBanner();
+                console.log('[handleNewTask] 界面统计已更新');
+            } catch (e) {
+                console.error('[handleNewTask] 创建任务时发生错误:', e);
+                alert('创建任务失败: ' + e.message);
             }
         }
 
-        // ========================================
-        // 计算有效工时（扣除休息时段）- TASK-004
-        // ========================================
-        /**
-         * 计算有效工时（扣除休息时段）
-         * @param {number} startTime - 开始时间戳
-         * @param {number} endTime - 结束时间戳
-         * @param {Array} breakPeriods - 休息时段数组
-         * @returns {number} 有效工时（毫秒）
-         */
-        // function calculateEffectiveTime(startTime, endTime, breakPeriods) {
-        //     // TODO: 实现有效工时计算 (TASK-004)
-        // }
+        // ----- 任务卡片渲染 -----
+        function renderTaskCard(task, readonly, containerId) {
+            if (readonly === undefined) readonly = false;
+            if (containerId === undefined) containerId = 'tasks-container';
 
-        /**
-         * 换算人天数
-         * @param {number} hours - 小时数
-         * @returns {number} 人天数
-         */
-        // function convertToPersonDays(hours) {
-        //     // TODO: 实现人天换算 (TASK-004)
-        // }
+            const container = document.getElementById(containerId);
+            if (!container) return;
 
-        // ========================================
-        // UI 更新函数 (占位)
-        // ========================================
+            // 移除空状态
+            const emptyState = container.querySelector('.empty-state');
+            if (emptyState) {
+                emptyState.remove();
+            }
 
-        /**
-         * 渲染今日记录列表
-         */
-        // function renderTodayRecords() {
-        //     // TODO: 实现记录列表渲染 (TASK-003)
-        // }
+            // 检查是否已存在该任务的卡片
+            let card = document.getElementById(`task-card-${task.id}`);
 
-        /**
-         * 更新统计面板
-         */
-        // function updateStatsPanel() {
-        //     // TODO: 实现统计面板更新 (TASK-003)
-        // }
+            if (!card || card.parentElement !== container) {
+                card = document.createElement('div');
+                card.id = `task-card-${task.id}`;
+                card.className = `task-card status-${task.status} bg-white border border-slate-200 rounded-xl p-5 shadow-sm relative`;
+                container.appendChild(card);
+            }
 
-        // ========================================
-        // 数据存储函数 (占位)
-        // ========================================
+            // 更新卡片样式
+            card.className = `task-card status-${task.status} bg-white border border-slate-200 rounded-xl p-5 shadow-sm relative`;
 
-        /**
-         * 保存计时记录到 localStorage
-         * @param {Object} entry - 计时记录对象
-         */
-        // function saveEntry(entry) {
-        //     // TODO: 实现记录保存 (TASK-003)
-        // }
+            // 生成卡片内容
+            card.innerHTML = buildTaskCardHTML(task, readonly);
 
-        /**
-         * 获取指定日期的所有记录
-         * @param {string} date - 日期字符串 (YYYY-MM-DD)
-         * @returns {Array} 记录数组
-         */
-        // function getEntriesByDate(date) {
-        //     // TODO: 实现按日期查询 (TASK-003)
-        // }
+            // 绑定按钮事件
+            bindTaskButtonEvents(task, card, readonly);
 
-        /**
-         * 导出数据为 JSON 文件
-         */
-        // function exportData() {
-        //     // TODO: 实现数据导出 (TASK-005)
-        // }
-
-        /**
-         * 从 JSON 文件导入数据
-         * @param {File} file - 导入的文件对象
-         */
-        // function importData(file) {
-        //     // TODO: 实现数据导入 (TASK-005)
-        // }
-
-        // ========================================
-        // 事件监听初始化
-        // ========================================
-
-        /**
-         * 初始化应用
-         */
-        function initApp() {
-            console.log('工作计时器已加载');
-
-            // 初始化 DOM 引用
-            taskNameInput = document.getElementById('task-name-input');
-            startStopBtn = document.getElementById('start-stop-btn');
-            timerDisplay = document.getElementById('timer-display');
-
-            // 绑定开始/停止按钮点击事件
-            startStopBtn.addEventListener('click', handleStartStopClick);
-
-            // 检查是否有未完成的计时并恢复
-            restoreTimerState();
+            // 如果任务是运行状态且非只读，启动计时器
+            if (task.status === 'running' && !readonly) {
+                startTaskTimer(task);
+            }
         }
 
-        // 页面加载完成后初始化
-        // 本脚本位于 body 末尾，DOM 元素已可用
-        // 使用 DOMContentLoaded 事件确保在浏览器中正确初始化
-        // 同时直接检查 readyState 以兼容 jsdom 测试环境
-        if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', initApp);
-        } else {
-            initApp();
+        function buildTaskCardHTML(task, readonly) {
+            if (readonly === undefined) readonly = false;
+
+            const statusText = {
+                idle: '未开始',
+                running: '进行中',
+                paused: '已暂停',
+                completed: '已完成'
+            };
+
+            const statusClass = task.status;
+            const timerHidden = (task.status === 'running' && !readonly) ? '' : 'hidden';
+
+            // 计算累计时长显示
+            const rawMs = task.totalRawDuration;
+            const effectiveMs = task.totalEffectiveDuration;
+            const durationText = rawMs === effectiveMs
+                ? `累计时长：${formatDuration(rawMs)}`
+                : `累计时长：${formatDuration(rawMs)} <span class="text-slate-400">（有效 ${formatDuration(effectiveMs)}）</span>`;
+
+            // 操作按钮（只读模式下不显示）
+            let buttonsHTML = '';
+            if (!readonly) {
+                if (task.status === 'idle') {
+                    buttonsHTML = `<button class="task-btn task-btn-start flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-sm" data-action="start" data-task-id="${task.id}"><iconify-icon icon="solar:play-linear" style="stroke-width:1.5;"></iconify-icon> 开始任务</button>`;
+                } else if (task.status === 'running') {
+                    buttonsHTML = `<button class="task-btn task-btn-complete flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-slate-800 text-white rounded-lg hover:bg-slate-900 transition-colors shadow-sm" data-action="complete" data-task-id="${task.id}"><iconify-icon icon="solar:check-circle-linear" style="stroke-width:1.5;"></iconify-icon> 结束任务</button>`;
+                } else if (task.status === 'paused') {
+                    buttonsHTML = `
+                        <button class="task-btn task-btn-resume flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-sm" data-action="resume" data-task-id="${task.id}"><iconify-icon icon="solar:play-linear" style="stroke-width:1.5;"></iconify-icon> 继续</button>
+                        <button class="task-btn task-btn-complete flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-slate-800 text-white rounded-lg hover:bg-slate-900 transition-colors shadow-sm" data-action="complete" data-task-id="${task.id}"><iconify-icon icon="solar:check-circle-linear" style="stroke-width:1.5;"></iconify-icon> 结束</button>
+                    `;
+                } else if (task.status === 'completed') {
+                    buttonsHTML = `<button class="task-btn flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-white border border-slate-200 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors shadow-sm" data-action="append" data-task-id="${task.id}"><iconify-icon icon="solar:add-circle-linear" style="stroke-width:1.5;"></iconify-icon> 追加记录</button>`;
+                }
+            }
+            // readonly 模式无按钮
+
+            // 最近一个时间段（精简视图显示）
+            let recentSegmentHTML = '';
+            const segmentCount = task.segments ? task.segments.length : 0;
+            if (segmentCount > 0) {
+                const latestSegment = task.segments[task.segments.length - 1];
+                const startDate = new Date(latestSegment.startTime);
+                const endDate = latestSegment.endTime ? new Date(latestSegment.endTime) : null;
+                const startTimeStr = formatTime(startDate);
+                const endTimeStr = endDate ? formatTime(endDate) : '进行中';
+                const segDuration = endDate
+                    ? formatDurationMinutes(Math.floor((latestSegment.endTime - latestSegment.startTime) / 60000))
+                    : formatDurationMinutes(Math.floor((Date.now() - latestSegment.startTime) / 60000));
+                recentSegmentHTML = `
+                    <div class="task-card-recent-segment mt-3 px-3 py-2 bg-slate-50 border border-slate-100 rounded-lg flex items-center gap-2">
+                        <iconify-icon icon="solar:history-linear" class="text-slate-400"></iconify-icon>
+                        <span class="text-xs text-slate-500">最近：${formatDate(startDate)} ${startTimeStr} - ${endTimeStr}（${segDuration}）</span>
+                    </div>
+                `;
+            }
+
+            // 更多菜单HTML（只读模式下不显示）
+            const moreMenuHTML = readonly ? '' : `
+                <div class="relative">
+                    <button class="task-more-menu-btn w-6 h-6 flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-md transition-colors" data-more-menu="${task.id}" title="更多">
+                        <iconify-icon icon="solar:menu-dots-bold" style="stroke-width:1.5;"></iconify-icon>
+                    </button>
+                    <div class="task-more-menu hidden absolute right-0 top-full mt-1 w-36 bg-white border border-slate-200 shadow-lg rounded-lg py-1 z-50" data-menu-dropdown="${task.id}">
+                        <button class="task-more-menu-item delete-item w-full text-left px-4 py-2 text-xs font-medium text-red-600 hover:bg-red-50 transition-colors" data-delete-task="${task.id}">删除任务</button>
+                    </div>
+                </div>
+            `;
+
+            const statusStyles = {
+                idle: 'bg-slate-100 text-slate-600',
+                running: 'bg-blue-50 text-blue-600 ring-1 ring-inset ring-blue-500/20',
+                paused: 'bg-amber-50 text-amber-600 ring-1 ring-inset ring-amber-500/20',
+                completed: 'bg-slate-50 text-slate-500 border border-slate-200'
+            };
+
+            return `
+                <div class="task-card-header flex justify-between items-start mb-2">
+                    <div class="flex-1 min-w-0 pr-4">
+                        <h3 class="task-name text-lg font-medium tracking-tight text-slate-900 cursor-text hover:text-blue-600 transition-colors truncate" data-task-name="${task.id}">${escapeHtml(task.taskName)}</h3>
+                    </div>
+                    <div class="flex items-center flex-shrink-0 gap-2">
+                        <span class="task-status ${statusClass} inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium tracking-wide uppercase ${statusStyles[task.status]}">${statusText[task.status]}</span>
+                        ${moreMenuHTML}
+                    </div>
+                </div>
+                <div class="task-timer ${timerHidden} font-mono text-3xl font-medium tracking-tight text-blue-600 mb-1" data-task-timer="${task.id}">00:00:00</div>
+                <div class="task-duration text-xs text-slate-500">${durationText}</div>
+                ${recentSegmentHTML}
+                <div class="task-actions mt-4 flex flex-wrap gap-2">
+                    ${buttonsHTML}
+                </div>
+                
+                <div class="border-t border-slate-100 mt-4 pt-3">
+                    <button class="task-card-expand-btn segments-toggle flex items-center gap-1.5 text-xs font-medium text-slate-500 hover:text-blue-600 transition-colors" data-toggle-segments="${task.id}">
+                        <iconify-icon icon="solar:alt-arrow-down-linear" style="stroke-width:1.5;" class="segments-toggle-icon"></iconify-icon>
+                        <span>展开详情</span>
+                    </button>
+                </div>
+                <div class="segments-panel bg-slate-50/50 rounded-b-xl -mx-5 -mb-5 mt-3 border-t border-slate-100" data-segments-panel="${task.id}">
+                    <div class="segments-panel-inner p-5">
+                        ${buildSegmentsListHTML(task, readonly)}
+                    </div>
+                </div>
+            `;
         }
 
-        // 页面关闭前保存计时状态
-        window.addEventListener('beforeunload', function() {
-            if (isRunning) {
-                saveTimerState();
+        function buildSegmentsListHTML(task, readonly) {
+            if (readonly === undefined) readonly = false;
+
+            if (!task.segments || task.segments.length === 0) {
+                return '<div class="text-center text-xs text-slate-500 py-6">暂无时间段记录</div>';
+            }
+
+            let html = '<div class="space-y-3">';
+            // 倒序显示，最新的在前面
+            const segments = [...task.segments].reverse();
+            segments.forEach(segment => {
+                const isRunning = segment.endTime === null;
+                const startDate = new Date(segment.startTime);
+                const endDate = isRunning ? null : new Date(segment.endTime);
+
+                const dateStr = formatDate(startDate);
+                const startTimeStr = formatTime(startDate);
+                const endTimeStr = isRunning ? '进行中' : formatTime(endDate);
+
+                const rawMinutes = isRunning
+                    ? Math.floor((Date.now() - segment.startTime) / 60000)
+                    : Math.floor(segment.rawDuration / 60000);
+                const effectiveMinutes = isRunning
+                    ? rawMinutes
+                    : Math.floor(segment.effectiveDuration / 60000);
+
+                const rawDurationStr = formatDurationMinutes(rawMinutes);
+                const effectiveDurationStr = formatDurationMinutes(effectiveMinutes);
+
+                // 构建时间轴进度条
+                const timelineHTML = buildTimelineHTML(segment, task);
+
+                const deleteBtnHTML = readonly ? '' : `<button class="segment-delete-btn w-7 h-7 flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors" data-delete-segment="${segment.id}" data-task-id="${task.id}" title="删除时间段"><iconify-icon icon="solar:trash-bin-trash-linear" class="text-base"></iconify-icon></button>`;
+
+                html += `
+                    <div class="segment-item bg-white border border-slate-200 rounded-xl p-4 shadow-sm relative ${isRunning ? 'ring-1 ring-blue-500' : ''}" data-segment-id="${segment.id}">
+                        <div class="flex justify-between items-start mb-3">
+                            <div class="segment-info flex-1">
+                                <div class="segment-date text-xs font-medium text-slate-900 mb-0.5">${dateStr}</div>
+                                <div class="segment-time font-mono text-xs text-slate-500" data-segment-text="${segment.id}">${startTimeStr} - ${endTimeStr}</div>
+                                <div class="segment-duration text-[10px] text-slate-400 mt-1" data-segment-duration="${segment.id}">原始${rawDurationStr} · 有效${effectiveDurationStr}</div>
+                            </div>
+                            ${deleteBtnHTML}
+                        </div>
+                        ${timelineHTML}
+                    </div>
+                `;
+            });
+            html += '</div>';
+
+            // 添加时间段按钮（只读模式下不显示）
+            if (!readonly) {
+                html += `
+                    <button class="segment-add-btn mt-4 w-full flex items-center justify-center gap-2 px-4 py-2.5 text-xs font-medium text-blue-600 bg-white border border-blue-200 border-dashed rounded-xl hover:bg-blue-50 hover:border-blue-300 transition-colors" data-add-segment="${task.id}">
+                        <iconify-icon icon="solar:add-circle-linear" style="stroke-width:1.5;"></iconify-icon>
+                        手动添加时间段
+                    </button>
+                `;
+            }
+
+            return html;
+        }
+
+        // 构建时间轴进度条HTML (V2-005)
+        function buildTimelineHTML(segment, task) {
+            const startDate = new Date(segment.startTime);
+            const startMinutes = startDate.getHours() * 60 + startDate.getMinutes();
+            
+            let endMinutes;
+            if (segment.endTime === null) {
+                endMinutes = startMinutes + Math.floor((Date.now() - segment.startTime) / 60000);
+            } else {
+                const endDate = new Date(segment.endTime);
+                endMinutes = endDate.getHours() * 60 + endDate.getMinutes();
+            }
+            
+            // 处理跨天情况
+            if (endMinutes < startMinutes) {
+                endMinutes = 1440; // 24:00
+            }
+            
+            const startPercent = (startMinutes / 1440) * 100;
+            const widthPercent = ((endMinutes - startMinutes) / 1440) * 100;
+
+            // 获取休息时段叠加层
+            const breakOverlays = buildBreakOverlays(segment);
+
+            return `
+                <div class="timeline-bar mt-2" data-segment-id="${segment.id}" data-task-id="${task.id}">
+                    <div class="timeline-labels flex justify-between text-[9px] font-medium text-slate-400 mb-1.5">
+                        <span>00:00</span><span>06:00</span><span>12:00</span><span>18:00</span><span>24:00</span>
+                    </div>
+                    <div class="timeline-track h-5 bg-slate-100 rounded-full relative cursor-pointer w-full" data-timeline-track="${segment.id}">
+                        ${breakOverlays}
+                        <div class="segment-fill h-full bg-blue-500 rounded-full absolute pointer-events-none min-w-[12px]" data-segment-fill="${segment.id}" 
+                             style="left: ${startPercent}%; width: ${widthPercent}%"></div>
+                        <div class="handle handle-start absolute top-0.5 w-4 h-4 bg-white border-2 border-blue-500 rounded-full cursor-ew-resize z-10 shadow-sm transition-transform hover:scale-110" data-handle="start" data-segment-id="${segment.id}" 
+                             style="left: ${startPercent}%; transform: translateX(-50%);"></div>
+                        <div class="handle handle-end absolute top-0.5 w-4 h-4 bg-white border-2 border-blue-500 rounded-full cursor-ew-resize z-10 shadow-sm transition-transform hover:scale-110" data-handle="end" data-segment-id="${segment.id}" 
+                             style="left: ${startPercent + widthPercent}%; transform: translateX(-50%);"></div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // 构建休息时段叠加层
+        function buildBreakOverlays(segment) {
+            const breakPeriods = getBreakPeriods();
+            if (!breakPeriods || breakPeriods.length === 0) return '';
+
+            let overlays = '';
+            breakPeriods.forEach(breakPeriod => {
+                if (!breakPeriod || !breakPeriod.start || !breakPeriod.end) return;
+                
+                const breakStartMinutes = timeToMinutes(breakPeriod.start);
+                const breakEndMinutes = timeToMinutes(breakPeriod.end);
+                
+                if (breakStartMinutes < 0 || breakEndMinutes > 1440 || breakEndMinutes <= breakStartMinutes) return;
+                
+                const leftPercent = (breakStartMinutes / 1440) * 100;
+                const widthPercent = ((breakEndMinutes - breakStartMinutes) / 1440) * 100;
+                
+                overlays += `
+                    <div class="break-overlay h-full absolute opacity-20 pointer-events-none rounded-sm" 
+                         style="left: ${leftPercent}%; width: ${widthPercent}%; background: ${breakPeriod.color || '#f59e0b'}"></div>
+                `;
+            });
+            
+            return overlays;
+        }
+
+        // 获取休息时段配置
+        function getBreakPeriods() {
+            const config = localStorage.getItem('time-tracker-config');
+            if (config) {
+                try {
+                    const parsed = JSON.parse(config);
+                    if (parsed.breakPeriods && Array.isArray(parsed.breakPeriods)) {
+                        return parsed.breakPeriods;
+                    }
+                } catch (e) {
+                    console.error('Failed to parse break periods config', e);
+                }
+            }
+
+            // 首次使用：创建默认配置并保存
+            const defaults = [
+                { name: '午休', start: '11:30', end: '13:30', color: '#fbbf24' },
+                { name: '晚间休息', start: '17:30', end: '19:00', color: '#f87171' }
+            ];
+            saveBreakPeriods(defaults);
+            return defaults;
+        }
+
+        // 保存休息时段配置
+        function saveBreakPeriods(periods) {
+            const config = { breakPeriods: periods };
+            localStorage.setItem('time-tracker-config', JSON.stringify(config));
+        }
+
+        // 计算时间段与休息时段的重叠毫秒数
+        function calculateOverlap(startTime, endTime, breakStart, breakEnd) {
+            const segmentDate = new Date(startTime);
+            const year = segmentDate.getFullYear();
+            const month = segmentDate.getMonth();
+            const day = segmentDate.getDate();
+
+            const [breakStartHours, breakStartMinutes] = breakStart.split(':').map(Number);
+            const [breakEndHours, breakEndMinutes] = breakEnd.split(':').map(Number);
+
+            const breakStartTime = new Date(year, month, day, breakStartHours, breakStartMinutes).getTime();
+            let breakEndTime = new Date(year, month, day, breakEndHours, breakEndMinutes).getTime();
+
+            // 处理跨天休息时段
+            if (breakEndTime <= breakStartTime) {
+                breakEndTime += 24 * 60 * 60 * 1000;
+            }
+
+            const overlapStart = Math.max(startTime, breakStartTime);
+            const overlapEnd = Math.min(endTime, breakEndTime);
+
+            return Math.max(0, overlapEnd - overlapStart);
+        }
+
+        // 计算时间段的有效时长（扣除休息重叠）
+        function calculateSegmentEffectiveDuration(segment, breakPeriods) {
+            if (!segment.endTime) {
+                segment.effectiveDuration = segment.rawDuration || 0;
+                segment.breakOverlapMinutes = 0;
+                return;
+            }
+
+            if (!breakPeriods) {
+                breakPeriods = getBreakPeriods();
+            }
+
+            let totalOverlapMs = 0;
+            breakPeriods.forEach(bp => {
+                const overlap = calculateOverlap(segment.startTime, segment.endTime, bp.start, bp.end);
+                totalOverlapMs += overlap;
+            });
+
+            segment.breakOverlapMinutes = Math.floor(totalOverlapMs / (60 * 1000));
+            segment.effectiveDuration = Math.max(0, (segment.rawDuration || 0) - totalOverlapMs);
+        }
+
+        // 重新计算所有任务的有效时长
+        function recalculateAllTasksEffectiveDuration() {
+            const breakPeriods = getBreakPeriods();
+            todayTasks.forEach(task => {
+                task.segments.forEach(segment => {
+                    if (segment.endTime !== null) {
+                        segment.rawDuration = segment.endTime - segment.startTime;
+                        calculateSegmentEffectiveDuration(segment, breakPeriods);
+                    }
+                });
+                updateTaskTotals(task);
+            });
+        }
+
+        // 时间字符串转换为分钟数
+        function timeToMinutes(timeStr) {
+            if (!timeStr || typeof timeStr !== 'string') return 0;
+            const parts = timeStr.split(':');
+            if (parts.length < 2) return 0;
+            const hours = parseInt(parts[0], 10) || 0;
+            const minutes = parseInt(parts[1], 10) || 0;
+            return hours * 60 + minutes;
+        }
+
+        // 分钟数转换为时间字符串 (HH:MM)
+        function minutesToTime(minutes) {
+            const hours = Math.floor(minutes / 60);
+            const mins = minutes % 60;
+            return `${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}`;
+        }
+
+        // 将时间粒度化为5分钟
+        function roundToGranularity(minutes) {
+            return Math.round(minutes / 5) * 5;
+        }
+
+        function formatTime(date) {
+            const hours = String(date.getHours()).padStart(2, '0');
+            const minutes = String(date.getMinutes()).padStart(2, '0');
+            return `${hours}:${minutes}`;
+        }
+
+        // ===== 时间轴拖拽逻辑 (V2-005) =====
+        let dragState = null;
+
+        function initTimelineDrag(handle, segment, task) {
+            handle.addEventListener('mousedown', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+
+                const handleType = this.dataset.handle;
+                const segmentId = this.dataset.segmentId;
+                const timelineBar = document.querySelector(`.timeline-bar[data-segment-id="${segmentId}"]`);
+                if (!timelineBar) return;
+
+                const track = timelineBar.querySelector('.timeline-track');
+                const rect = track.getBoundingClientRect();
+
+                // 保存原始位置用于冲突恢复
+                const originalStartPercent = parseFloat(handle.style.left) || 0;
+
+                dragState = {
+                    handle: this,
+                    handleType: handleType,
+                    segment: segment,
+                    task: task,
+                    track: track,
+                    trackRect: rect,
+                    startX: e.clientX,
+                    originalStartPercent: originalStartPercent,
+                    hasConflict: false,
+                    tooltip: null
+                };
+
+                // 创建 tooltip
+                createDragTooltip(e.clientX, e.clientY, handleType === 'start' ? segment.startTime : segment.endTime);
+
+                // 绑定全局事件
+                document.addEventListener('mousemove', onTimelineDrag);
+                document.addEventListener('mouseup', onTimelineDragEnd);
+            });
+        }
+
+        function onTimelineDrag(e) {
+            if (!dragState) return;
+
+            const { handle, handleType, segment, task, track, trackRect } = dragState;
+
+            // 计算鼠标相对于轨道的位置（百分比）
+            let relativeX = e.clientX - trackRect.left;
+            let percent = (relativeX / trackRect.width) * 100;
+
+            // 限制在 0-100% 范围内
+            percent = Math.max(0, Math.min(100, percent));
+
+            // 转换为分钟数，粒度化为5分钟
+            const totalMinutes = 1440;
+            let minutes = Math.round((percent / 100) * totalMinutes);
+            minutes = roundToGranularity(minutes);
+            minutes = Math.max(0, Math.min(1440, minutes));
+
+            // 转换回百分比
+            percent = (minutes / totalMinutes) * 100;
+
+            // 更新手柄位置
+            handle.style.left = percent + '%';
+
+            // 更新填充条
+            const fill = track.querySelector('.segment-fill');
+            const startHandle = track.querySelector('.handle-start');
+            const endHandle = track.querySelector('.handle-end');
+
+            let startPercent = parseFloat(startHandle.style.left) || 0;
+            let endPercent = parseFloat(endHandle.style.left) || 0;
+
+            if (handleType === 'start') {
+                // 确保开始时间不超过结束时间
+                if (percent > endPercent - 1) {
+                    percent = endPercent - 1;
+                    minutes = Math.round((percent / 100) * totalMinutes);
+                    minutes = roundToGranularity(minutes);
+                    percent = (minutes / totalMinutes) * 100;
+                    handle.style.left = percent + '%';
+                }
+                startPercent = percent;
+            } else {
+                // 确保结束时间不早于开始时间
+                if (percent < startPercent + 1) {
+                    percent = startPercent + 1;
+                    minutes = Math.round((percent / 100) * totalMinutes);
+                    minutes = roundToGranularity(minutes);
+                    percent = (minutes / totalMinutes) * 100;
+                    handle.style.left = percent + '%';
+                }
+                endPercent = percent;
+            }
+
+            if (fill) {
+                fill.style.left = startPercent + '%';
+                fill.style.width = (endPercent - startPercent) + '%';
+            }
+
+            // 更新 tooltip
+            updateDragTooltip(e.clientX, e.clientY, minutes);
+
+            // 检测冲突
+            const otherSegments = task.segments.filter(s => s.id !== segment.id);
+            const newStartTime = handleType === 'start' ? minutesToTime(minutes) : minutesToTime(Math.round((startPercent / 100) * 1440));
+            const newEndTime = handleType === 'start' ? minutesToTime(Math.round((endPercent / 100) * 1440)) : minutesToTime(minutes);
+
+            // 创建临时 segment 用于冲突检测
+            const tempSegment = {
+                startTime: timeToTimestamp(newStartTime, segment.startTime),
+                endTime: timeToTimestamp(newEndTime, segment.startTime)
+            };
+
+            const hasOverlap = checkSegmentOverlap(tempSegment, otherSegments);
+            dragState.hasConflict = hasOverlap;
+
+            if (hasOverlap) {
+                handle.classList.add('conflict');
+            } else {
+                handle.classList.remove('conflict');
+            }
+        }
+
+        function onTimelineDragEnd(e) {
+            if (!dragState) return;
+
+            const { handle, handleType, segment, task, hasConflict, originalStartPercent } = dragState;
+
+            // 移除 tooltip
+            removeDragTooltip();
+
+            if (hasConflict) {
+                // 恢复原始位置
+                handle.style.left = originalStartPercent + '%';
+                handle.classList.remove('conflict');
+
+                // 重新计算填充条
+                const track = handle.closest('.timeline-track');
+                const startHandle = track.querySelector('.handle-start');
+                const endHandle = track.querySelector('.handle-end');
+                const fill = track.querySelector('.segment-fill');
+
+                const startPercent = parseFloat(startHandle.style.left) || 0;
+                const endPercent = parseFloat(endHandle.style.left) || 0;
+
+                if (fill) {
+                    fill.style.left = startPercent + '%';
+                    fill.style.width = (endPercent - startPercent) + '%';
+                }
+
+                // 显示错误提示
+                alert('时间段不能与其他段重叠，已恢复原始位置');
+            } else {
+                // 无冲突，保存新时间
+                const track = handle.closest('.timeline-track');
+                const startHandle = track.querySelector('.handle-start');
+                const endHandle = track.querySelector('.handle-end');
+
+                const startPercent = parseFloat(startHandle.style.left) || 0;
+                const endPercent = parseFloat(endHandle.style.left) || 0;
+
+                const startMinutes = Math.round((startPercent / 100) * 1440);
+                const endMinutes = Math.round((endPercent / 100) * 1440);
+
+                // 更新时间戳（保持日期不变，只改时间）
+                const baseDate = new Date(segment.startTime);
+                const year = baseDate.getFullYear();
+                const month = baseDate.getMonth();
+                const day = baseDate.getDate();
+
+                const newStartDate = new Date(year, month, day, Math.floor(startMinutes / 60), startMinutes % 60);
+                const newEndDate = new Date(year, month, day, Math.floor(endMinutes / 60), endMinutes % 60);
+
+                segment.startTime = newStartDate.getTime();
+                if (segment.endTime !== null) {
+                    segment.endTime = newEndDate.getTime();
+                }
+
+                // 重新计算 rawDuration 和 effectiveDuration
+                if (segment.endTime !== null) {
+                    segment.rawDuration = segment.endTime - segment.startTime;
+                    calculateSegmentEffectiveDuration(segment);
+                }
+
+                // 更新任务总计
+                updateTaskTotals(task);
+
+                // 保存到 localStorage
+                saveTodayTasks(todayTasks);
+
+                // 更新时间段文字显示
+                updateSegmentTextDisplay(segment);
+
+                // 更新 Dashboard 统计
+                updateDashboardStats();
+            }
+
+            // 清理
+            document.removeEventListener('mousemove', onTimelineDrag);
+            document.removeEventListener('mouseup', onTimelineDragEnd);
+            dragState = null;
+        }
+
+        function createDragTooltip(x, y, timestamp) {
+            removeDragTooltip();
+
+            const tooltip = document.createElement('div');
+            tooltip.className = 'timeline-tooltip';
+            tooltip.textContent = formatTime(new Date(timestamp));
+            tooltip.style.left = x + 'px';
+            tooltip.style.top = y + 'px';
+            document.body.appendChild(tooltip);
+
+            if (dragState) {
+                dragState.tooltip = tooltip;
+            }
+        }
+
+        function updateDragTooltip(x, y, minutes) {
+            if (!dragState || !dragState.tooltip) return;
+
+            const timeStr = minutesToTime(minutes);
+            dragState.tooltip.textContent = timeStr;
+            dragState.tooltip.style.left = x + 'px';
+            dragState.tooltip.style.top = (dragState.trackRect.top - 10) + 'px';
+        }
+
+        function removeDragTooltip() {
+            const existing = document.querySelector('.timeline-tooltip');
+            if (existing) {
+                existing.remove();
+            }
+        }
+
+        // 将时间字符串转换为时间戳（基于基准日期）
+        function timeToTimestamp(timeStr, baseTimestamp) {
+            const baseDate = new Date(baseTimestamp);
+            const [hours, minutes] = timeStr.split(':').map(Number);
+            return new Date(
+                baseDate.getFullYear(),
+                baseDate.getMonth(),
+                baseDate.getDate(),
+                hours,
+                minutes
+            ).getTime();
+        }
+
+        // 冲突检测
+        function checkSegmentOverlap(segment, otherSegments) {
+            if (!otherSegments || otherSegments.length === 0) return false;
+
+            const segStart = segment.startTime;
+            const segEnd = segment.endTime;
+
+            for (const other of otherSegments) {
+                const otherStart = other.startTime;
+                const otherEnd = other.endTime || Date.now();
+
+                // 检查是否有交集
+                if (segStart < otherEnd && segEnd > otherStart) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        // 更新时间段文字显示
+        function updateSegmentTextDisplay(segment) {
+            const timeEl = document.querySelector(`[data-segment-text="${segment.id}"]`);
+            const durationEl = document.querySelector(`[data-segment-duration="${segment.id}"]`);
+
+            if (timeEl) {
+                const startDate = new Date(segment.startTime);
+                const endDate = segment.endTime ? new Date(segment.endTime) : null;
+                const startTimeStr = formatTime(startDate);
+                const endTimeStr = endDate ? formatTime(endDate) : '进行中';
+                timeEl.textContent = `${startTimeStr} - ${endTimeStr}`;
+            }
+
+            if (durationEl && segment.endTime !== null) {
+                const rawMinutes = Math.floor(segment.rawDuration / 60000);
+                const effectiveMinutes = Math.floor(segment.effectiveDuration / 60000);
+                durationEl.textContent = `原始${formatDurationMinutes(rawMinutes)} · 有效${formatDurationMinutes(effectiveMinutes)}`;
+            }
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function bindTaskButtonEvents(task, card, readonly) {
+            if (readonly === undefined) readonly = false;
+
+            // 只读模式下不绑定操作按钮
+            if (!readonly) {
+                // 绑定任务名称点击编辑事件 (TASK-006)
+                const taskNameEl = card.querySelector(`[data-task-name="${task.id}"]`);
+                if (taskNameEl) {
+                    bindTaskNameClick(taskNameEl);
+                }
+
+                const buttons = card.querySelectorAll('.task-btn');
+                buttons.forEach(btn => {
+                    btn.addEventListener('click', function(e) {
+                        e.preventDefault();
+                        const action = this.dataset.action;
+                        const taskId = this.dataset.taskId;
+                        handleTaskAction(taskId, action);
+                    });
+                });
+
+                // 绑定更多菜单按钮事件 (TASK-005)
+                const moreBtn = card.querySelector(`[data-more-menu="${task.id}"]`);
+                if (moreBtn) {
+                    moreBtn.addEventListener('click', function(e) {
+                        e.stopPropagation();
+                        toggleMoreMenu(task.id);
+                    });
+                }
+
+                // 绑定删除任务菜单项事件 (TASK-005)
+                const deleteMenuItem = card.querySelector(`[data-delete-task="${task.id}"]`);
+                if (deleteMenuItem) {
+                    deleteMenuItem.addEventListener('click', function(e) {
+                        e.stopPropagation();
+                        hideAllMoreMenus();
+                        showDeleteConfirmDialog(task);
+                    });
+                }
+            }
+
+            // 绑定时间段展开/收起事件（只读模式也可展开查看）
+            const toggleEl = card.querySelector(`[data-toggle-segments="${task.id}"]`);
+            if (toggleEl) {
+                toggleEl.addEventListener('click', function() {
+                    toggleSegmentsList(task.id);
+                });
+            }
+
+            // 只读模式下不绑定删除时间段事件
+            if (!readonly) {
+                const deleteBtns = card.querySelectorAll('[data-delete-segment]');
+                deleteBtns.forEach(btn => {
+                    btn.addEventListener('click', function(e) {
+                        e.stopPropagation();
+                        const segmentId = this.dataset.deleteSegment;
+                        const taskId = this.dataset.taskId;
+                        deleteSegment(taskId, segmentId);
+                    });
+                });
+
+                // 绑定添加时间段按钮事件
+                const addBtn = card.querySelector(`[data-add-segment="${task.id}"]`);
+                if (addBtn) {
+                    addBtn.addEventListener('click', function() {
+                        showSegmentAddForm(task.id);
+                    });
+                }
+
+                // 绑定时间轴拖拽事件 (V2-005)
+                bindTimelineEvents(task, card);
+            }
+        }
+
+        // 绑定时间轴事件
+        function bindTimelineEvents(task, card) {
+            const handles = card.querySelectorAll('.handle');
+            handles.forEach(handle => {
+                const segmentId = handle.dataset.segmentId;
+                const segment = task.segments.find(s => s.id === segmentId);
+                if (segment) {
+                    initTimelineDrag(handle, segment, task);
+                }
+            });
+        }
+
+        // ----- 时间段展开/收起 (TASK-003) -----
+        function toggleSegmentsList(taskId) {
+            const toggleEl = document.querySelector(`[data-toggle-segments="${taskId}"]`);
+            const panelEl = document.querySelector(`[data-segments-panel="${taskId}"]`);
+            if (!toggleEl || !panelEl) return;
+
+            const isExpanded = panelEl.classList.contains('expanded');
+            
+            if (isExpanded) {
+                panelEl.classList.remove('expanded');
+                toggleEl.classList.remove('expanded');
+                toggleEl.querySelector('span:last-child').textContent = '展开详情';
+            } else {
+                panelEl.classList.add('expanded');
+                toggleEl.classList.add('expanded');
+                toggleEl.querySelector('span:last-child').textContent = '收起详情';
+            }
+        }
+
+        // ----- 更多菜单 (TASK-005) -----
+        let activeMoreMenuTaskId = null;
+
+        function toggleMoreMenu(taskId) {
+            const menu = document.querySelector(`[data-menu-dropdown="${taskId}"]`);
+            if (!menu) return;
+
+            const isVisible = menu.classList.contains('visible');
+            hideAllMoreMenus();
+
+            if (!isVisible) {
+                menu.classList.add('visible');
+                activeMoreMenuTaskId = taskId;
+            }
+        }
+
+        function hideAllMoreMenus() {
+            const menus = document.querySelectorAll('.task-more-menu.visible');
+            menus.forEach(menu => menu.classList.remove('visible'));
+            activeMoreMenuTaskId = null;
+        }
+
+        // 点击外部关闭菜单
+        document.addEventListener('click', function(e) {
+            if (activeMoreMenuTaskId) {
+                const menuWrapper = document.querySelector(`[data-menu-dropdown="${activeMoreMenuTaskId}"]`);
+                if (menuWrapper && !menuWrapper.contains(e.target)) {
+                    hideAllMoreMenus();
+                }
             }
         });
 
-        // TODO: 绑定文件导入事件 (TASK-005)
-        // TODO: 绑定日期选择事件 (TASK-003)
+        // ----- 删除确认对话框 (TASK-005) -----
+        let currentDeleteTask = null;
 
-        // ========================================
-        // 应用初始化完成
-        // ========================================
-        console.log('工作计时器 JavaScript 框架已准备就绪');
+        function showDeleteConfirmDialog(task) {
+            closeDeleteConfirmDialog();
+            currentDeleteTask = task;
+
+            const overlay = document.createElement('div');
+            overlay.className = 'fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-[1000] p-4';
+            overlay.id = 'delete-dialog-overlay';
+
+            overlay.innerHTML = `
+                <div class="delete-dialog bg-white rounded-xl shadow-xl max-w-sm w-full mx-auto overflow-hidden border border-slate-200">
+                    <div class="delete-dialog-header p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                        <h3 class="delete-dialog-title text-sm font-medium text-slate-900">确认删除</h3>
+                        <button class="delete-dialog-close text-slate-400 hover:text-slate-600 transition-colors" data-delete-dialog-action="close">
+                            <iconify-icon icon="solar:close-circle-linear" class="text-lg"></iconify-icon>
+                        </button>
+                    </div>
+                    <div class="delete-dialog-body p-5 text-sm text-slate-600 leading-relaxed">
+                        确定删除任务 <span class="font-medium text-slate-900">"${escapeHtml(task.taskName)}"</span> 及所有时间段？此操作不可恢复。
+                    </div>
+                    <div class="delete-dialog-footer p-4 border-t border-slate-100 flex justify-end gap-2 bg-slate-50/50">
+                        <button class="px-4 py-2 text-xs font-medium text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors" data-delete-dialog-action="cancel">取消</button>
+                        <button class="px-4 py-2 text-xs font-medium text-white bg-red-500 rounded-lg hover:bg-red-600 transition-colors shadow-sm" data-delete-dialog-action="confirm">删除</button>
+                    </div>
+                </div>
+            `;
+
+            document.body.appendChild(overlay);
+
+            // 绑定对话框按钮事件
+            const closeBtn = overlay.querySelector('[data-delete-dialog-action="close"]');
+            const cancelBtn = overlay.querySelector('[data-delete-dialog-action="cancel"]');
+            const confirmBtn = overlay.querySelector('[data-delete-dialog-action="confirm"]');
+
+            if (closeBtn) {
+                closeBtn.addEventListener('click', closeDeleteConfirmDialog);
+            }
+            if (cancelBtn) {
+                cancelBtn.addEventListener('click', closeDeleteConfirmDialog);
+            }
+            if (confirmBtn) {
+                confirmBtn.addEventListener('click', function() {
+                    if (currentDeleteTask) {
+                        deleteTask(currentDeleteTask.id);
+                    }
+                    closeDeleteConfirmDialog();
+                });
+            }
+
+            // 点击遮罩层关闭
+            overlay.addEventListener('click', function(e) {
+                if (e.target === overlay) {
+                    closeDeleteConfirmDialog();
+                }
+            });
+        }
+
+        function closeDeleteConfirmDialog() {
+            const overlay = document.getElementById('delete-dialog-overlay');
+            if (overlay) {
+                overlay.remove();
+            }
+            currentDeleteTask = null;
+        }
+
+        // ----- 删除任务 (TASK-005) -----
+        function deleteTask(taskId) {
+            const taskIndex = todayTasks.findIndex(t => t.id === taskId);
+            if (taskIndex === -1) return;
+
+            const task = todayTasks[taskIndex];
+
+            // 如果任务正在运行，停止计时器
+            if (task.status === 'running') {
+                stopTaskTimer(taskId);
+            }
+
+            // 从数组中移除
+            todayTasks.splice(taskIndex, 1);
+
+            // 保存到 localStorage
+            saveTodayTasks(todayTasks);
+
+            // 从 DOM 中移除卡片
+            const card = document.getElementById(`task-card-${taskId}`);
+            if (card) {
+                card.remove();
+            }
+
+            // 如果容器为空，显示空状态
+            const container = document.getElementById('tasks-container');
+            if (container && container.children.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state flex flex-col items-center justify-center py-20 px-4 bg-white border border-slate-200 border-dashed rounded-xl">
+                        <div class="w-12 h-12 bg-slate-50 rounded-full flex items-center justify-center mb-4">
+                            <iconify-icon icon="solar:document-add-linear" style="stroke-width:1.5;" class="text-2xl text-slate-400"></iconify-icon>
+                        </div>
+                        <div class="empty-state-text text-sm font-medium text-slate-900 mb-1">暂无任务</div>
+                        <div class="empty-state-hint text-xs text-slate-500">点击右上角"新建任务"开始计时</div>
+                    </div>
+                `;
+            }
+
+            // 更新 Dashboard 统计
+            updateDashboardStats();
+            updateActiveTaskBanner();
+        }
+
+        // ----- 任务名称编辑 (TASK-006) -----
+        function enableTaskNameEdit(task, nameElement) {
+            const originalName = task.taskName;
+            const parent = nameElement.parentElement;
+
+            // Create input element
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.className = 'task-name-input w-full px-2 py-1 -ml-2 text-lg font-medium text-slate-900 bg-white border border-blue-500 rounded focus:outline-none focus:ring-1 focus:ring-blue-500';
+            input.value = originalName;
+            input.dataset.taskNameInput = task.id;
+
+            // Create error hint
+            const errorEl = document.createElement('div');
+            errorEl.className = 'task-name-error hidden text-xs text-red-500 mt-1';
+            errorEl.textContent = '请输入任务名称';
+            errorEl.dataset.taskNameError = task.id;
+
+            // Replace h3 with input wrapper
+            const wrapper = document.createElement('div');
+            wrapper.style.flex = '1';
+            wrapper.style.minWidth = '0';
+            wrapper.appendChild(input);
+            wrapper.appendChild(errorEl);
+
+            parent.replaceChild(wrapper, nameElement);
+
+            // Focus and select all text
+            input.focus();
+            input.select();
+
+            // Handle blur - save
+            input.addEventListener('blur', function() {
+                saveTaskName(task, input.value, originalName, input, errorEl, parent, wrapper);
+            });
+
+            // Handle keydown - Enter to save, Escape to cancel
+            input.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    input.blur();
+                } else if (e.key === 'Escape') {
+                    e.preventDefault();
+                    cancelTaskNameEdit(originalName, parent, wrapper);
+                }
+            });
+
+            // Prevent click propagation to avoid triggering other card interactions
+            input.addEventListener('click', function(e) {
+                e.stopPropagation();
+            });
+        }
+
+        function saveTaskName(task, newName, originalName, input, errorEl, parent, wrapper) {
+            const trimmedName = newName.trim();
+
+            // Validation: empty name
+            if (!trimmedName) {
+                input.classList.add('border-red-500');
+                errorEl.classList.remove('hidden');
+                // Keep focus on input so user can correct
+                setTimeout(function() {
+                    input.focus();
+                }, 0);
+                return;
+            }
+
+            // If name hasn't changed, just revert
+            if (trimmedName === originalName) {
+                cancelTaskNameEdit(originalName, parent, wrapper);
+                return;
+            }
+
+            // Update task object
+            task.taskName = trimmedName;
+
+            // Save to localStorage
+            const taskIndex = todayTasks.findIndex(t => t.id === task.id);
+            if (taskIndex !== -1) {
+                todayTasks[taskIndex].taskName = trimmedName;
+                saveTodayTasks(todayTasks);
+            }
+
+            // Restore h3 element with new name
+            restoreTaskNameElement(task, parent, wrapper);
+        }
+
+        function cancelTaskNameEdit(originalName, parent, wrapper) {
+            // Create h3 with original name
+            const h3 = document.createElement('h3');
+            h3.className = 'task-name text-lg font-medium tracking-tight text-slate-900 cursor-text hover:text-blue-600 transition-colors truncate';
+            h3.textContent = originalName;
+            h3.dataset.taskName = '';
+            // We need to find the task id to set the data attribute
+            // The wrapper's parent is the task-name-wrapper div
+            // We can get the task id from the card id
+            const card = parent.closest('.task-card');
+            if (card) {
+                const taskId = card.id.replace('task-card-', '');
+                h3.dataset.taskName = taskId;
+            }
+
+            parent.replaceChild(h3, wrapper);
+
+            // Re-bind click event
+            bindTaskNameClick(h3);
+        }
+
+        function restoreTaskNameElement(task, parent, wrapper) {
+            const h3 = document.createElement('h3');
+            h3.className = 'task-name text-lg font-medium tracking-tight text-slate-900 cursor-text hover:text-blue-600 transition-colors truncate';
+            h3.textContent = task.taskName;
+            h3.dataset.taskName = task.id;
+
+            parent.replaceChild(h3, wrapper);
+
+            // Re-bind click event
+            bindTaskNameClick(h3);
+        }
+
+        function bindTaskNameClick(nameElement) {
+            if (!nameElement) return;
+            nameElement.addEventListener('click', function(e) {
+                e.stopPropagation();
+                const card = nameElement.closest('.task-card');
+                if (!card) return;
+                const taskId = card.id.replace('task-card-', '');
+                const task = todayTasks.find(t => t.id === taskId);
+                if (task) {
+                    enableTaskNameEdit(task, nameElement);
+                }
+            });
+        }
+
+        // ----- 删除时间段 (V2-004) -----
+        function deleteSegment(taskId, segmentId) {
+            if (!confirm('确定要删除这个时间段吗？')) {
+                return;
+            }
+
+            const task = todayTasks.find(t => t.id === taskId);
+            if (!task) return;
+
+            // 找到并删除时间段
+            const segmentIndex = task.segments.findIndex(s => s.id === segmentId);
+            if (segmentIndex === -1) return;
+
+            // 如果被删除的是正在运行的段，先停止计时器
+            const segment = task.segments[segmentIndex];
+            if (segment.endTime === null && task.status === 'running') {
+                stopTaskTimer(taskId);
+                task.status = 'paused';
+            }
+
+            task.segments.splice(segmentIndex, 1);
+            
+            // 重新计算总时长
+            updateTaskTotals(task);
+            
+            // 保存到 localStorage
+            saveTodayTasks(todayTasks);
+            
+            // 重新渲染任务卡片
+            renderTaskCard(task);
+            
+            // 更新 Dashboard 统计
+            updateDashboardStats();
+            updateActiveTaskBanner();
+        }
+
+        // ----- 手动添加时间段 (V2-004) -----
+        function showSegmentAddForm(taskId) {
+            const panelEl = document.querySelector(`[data-segments-panel="${taskId}"]`);
+            if (!panelEl) return;
+            
+            const innerEl = panelEl.querySelector('.segments-panel-inner');
+            if (!innerEl) return;
+
+            // 检查是否已有表单
+            const existingForm = innerEl.querySelector('.segment-form');
+            if (existingForm) {
+                existingForm.remove();
+                return;
+            }
+
+            // 获取当前时间用于默认值
+            const now = new Date();
+            const oneHourLater = new Date(now.getTime() + 60 * 60 * 1000);
+            
+            const formatDateTimeLocal = (date) => {
+                const year = date.getFullYear();
+                const month = String(date.getMonth() + 1).padStart(2, '0');
+                const day = String(date.getDate()).padStart(2, '0');
+                const hours = String(date.getHours()).padStart(2, '0');
+                const minutes = String(date.getMinutes()).padStart(2, '0');
+                return `${year}-${month}-${day}T${hours}:${minutes}`;
+            };
+
+            const formHTML = `
+                <div class="segment-form bg-white border border-slate-200 shadow-sm rounded-xl p-4 mt-4" data-segment-form="${taskId}">
+                    <div class="flex flex-wrap gap-4 mb-3">
+                        <div class="flex-1 min-w-[180px]">
+                            <label class="block text-[11px] font-medium text-slate-500 mb-1.5 uppercase tracking-wider">开始时间</label>
+                            <input type="datetime-local" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors" data-form-start value="${formatDateTimeLocal(now)}">
+                        </div>
+                        <div class="flex-1 min-w-[180px]">
+                            <label class="block text-[11px] font-medium text-slate-500 mb-1.5 uppercase tracking-wider">结束时间</label>
+                            <input type="datetime-local" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors" data-form-end value="${formatDateTimeLocal(oneHourLater)}">
+                        </div>
+                    </div>
+                    <div class="segment-form-error hidden text-xs text-red-500 bg-red-50 p-2.5 rounded-lg mb-3 border border-red-100" data-form-error></div>
+                    <div class="flex justify-end gap-2 pt-2 border-t border-slate-100">
+                        <button class="segment-form-btn segment-form-btn-cancel px-3 py-1.5 text-xs font-medium text-slate-700 bg-white border border-slate-200 rounded-md hover:bg-slate-50 transition-colors" data-form-cancel>取消</button>
+                        <button class="segment-form-btn segment-form-btn-save px-3 py-1.5 text-xs font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 transition-colors shadow-sm" data-form-save>保存</button>
+                    </div>
+                </div>
+            `;
+
+            innerEl.insertAdjacentHTML('beforeend', formHTML);
+
+            // 绑定表单事件
+            const form = innerEl.querySelector('.segment-form');
+            const cancelBtn = form.querySelector('[data-form-cancel]');
+            const saveBtn = form.querySelector('[data-form-save]');
+
+            cancelBtn.addEventListener('click', function() {
+                form.remove();
+            });
+
+            saveBtn.addEventListener('click', function() {
+                saveNewSegment(taskId);
+            });
+        }
+
+        function saveNewSegment(taskId) {
+            const task = todayTasks.find(t => t.id === taskId);
+            if (!task) return;
+
+            const form = document.querySelector(`[data-segment-form="${taskId}"]`);
+            if (!form) return;
+
+            const startInput = form.querySelector('[data-form-start]');
+            const endInput = form.querySelector('[data-form-end]');
+            const errorEl = form.querySelector('[data-form-error]');
+
+            const startTime = new Date(startInput.value).getTime();
+            const endTime = new Date(endInput.value).getTime();
+
+            // 验证
+            errorEl.classList.add('hidden');
+            errorEl.textContent = '';
+
+            if (isNaN(startTime) || isNaN(endTime)) {
+                errorEl.textContent = '请输入有效的时间';
+                errorEl.classList.remove('hidden');
+                return;
+            }
+
+            if (endTime <= startTime) {
+                errorEl.textContent = '结束时间必须晚于开始时间';
+                errorEl.classList.remove('hidden');
+                return;
+            }
+
+            // 检查时间段重叠
+            for (const segment of task.segments) {
+                const segStart = segment.startTime;
+                const segEnd = segment.endTime || Date.now();
+
+                if ((startTime >= segStart && startTime < segEnd) ||
+                    (endTime > segStart && endTime <= segEnd) ||
+                    (startTime <= segStart && endTime >= segEnd)) {
+                    errorEl.textContent = '该时间段与已有记录重叠';
+                    errorEl.classList.remove('hidden');
+                    return;
+                }
+            }
+
+            // 创建新时间段
+            const newSegment = createSegment(startTime);
+            newSegment.endTime = endTime;
+            newSegment.rawDuration = endTime - startTime;
+            calculateSegmentEffectiveDuration(newSegment);
+
+            task.segments.push(newSegment);
+            updateTaskTotals(task);
+
+            saveTodayTasks(todayTasks);
+            renderTaskCard(task);
+            updateDashboardStats();
+        }
+
+        // ----- 操作按钮逻辑 -----
+        function handleTaskAction(taskId, action) {
+            const task = todayTasks.find(t => t.id === taskId);
+            if (!task) return;
+
+            switch (action) {
+                case 'start':
+                    startTask(task);
+                    break;
+                case 'pause':
+                    pauseTask(task);
+                    break;
+                case 'resume':
+                    resumeTask(task);
+                    break;
+                case 'complete':
+                    completeTask(task);
+                    break;
+                case 'append':
+                    appendTask(task);
+                    break;
+            }
+        }
+
+        function startTask(task) {
+            if (!canStart(task)) return;
+
+            const segment = createSegment(Date.now());
+            task.segments.push(segment);
+            task.status = 'running';
+
+            saveTodayTasks(todayTasks);
+            renderTaskCard(task);
+            updateDashboardStats();
+            updateActiveTaskBanner();
+        }
+
+        function pauseTask(task) {
+            if (!canPause(task)) return;
+
+            const currentSegment = task.segments[task.segments.length - 1];
+            if (currentSegment && currentSegment.endTime === null) {
+                const now = Date.now();
+                currentSegment.endTime = now;
+                const duration = calculateSegmentDuration(currentSegment, now);
+                currentSegment.rawDuration = duration;
+                calculateSegmentEffectiveDuration(currentSegment);
+            }
+
+            task.status = 'paused';
+            updateTaskTotals(task);
+
+            saveTodayTasks(todayTasks);
+            stopTaskTimer(task.id);
+            renderTaskCard(task);
+            updateDashboardStats();
+            updateActiveTaskBanner();
+        }
+
+        function resumeTask(task) {
+            if (!canStart(task)) return;
+
+            const segment = createSegment(Date.now());
+            task.segments.push(segment);
+            task.status = 'running';
+
+            saveTodayTasks(todayTasks);
+            renderTaskCard(task);
+            updateDashboardStats();
+            updateActiveTaskBanner();
+        }
+
+        function completeTask(task) {
+            if (!canComplete(task)) return;
+
+            // 如果正在运行，先结束当前段
+            if (task.status === 'running') {
+                const currentSegment = task.segments[task.segments.length - 1];
+                if (currentSegment && currentSegment.endTime === null) {
+                    const now = Date.now();
+                    currentSegment.endTime = now;
+                    const duration = calculateSegmentDuration(currentSegment, now);
+                    currentSegment.rawDuration = duration;
+                    calculateSegmentEffectiveDuration(currentSegment);
+                }
+                stopTaskTimer(task.id);
+            }
+
+            task.status = 'completed';
+            updateTaskTotals(task);
+
+            saveTodayTasks(todayTasks);
+            renderTaskCard(task);
+            updateDashboardStats();
+            updateActiveTaskBanner();
+        }
+
+        function appendTask(task) {
+            if (!canStart(task) || task.status !== 'completed') return;
+
+            const segment = createSegment(Date.now());
+            task.segments.push(segment);
+            task.status = 'running';
+
+            saveTodayTasks(todayTasks);
+            renderTaskCard(task);
+            updateDashboardStats();
+            updateActiveTaskBanner();
+        }
+
+        // ----- 计时器实时更新 -----
+        function startTaskTimer(task) {
+            if (window.runningIntervals[task.id]) {
+                clearInterval(window.runningIntervals[task.id]);
+            }
+
+            function updateTimer() {
+                const currentSegment = task.segments[task.segments.length - 1];
+                if (!currentSegment || currentSegment.endTime !== null) return;
+
+                const elapsed = Date.now() - currentSegment.startTime;
+                const totalRaw = task.totalRawDuration + elapsed;
+                const totalEffective = task.totalEffectiveDuration + elapsed;
+
+                // 更新卡片计时器
+                const cardTimer = document.querySelector(`[data-task-timer="${task.id}"]`);
+                if (cardTimer) {
+                    cardTimer.textContent = formatDuration(elapsed);
+                }
+
+                // 更新累计时长
+                const card = document.getElementById(`task-card-${task.id}`);
+                if (card) {
+                    const durationEl = card.querySelector('.task-duration');
+                    if (durationEl) {
+                        const durationText = totalRaw === totalEffective
+                            ? `累计时长：${formatDuration(totalRaw)}`
+                            : `累计时长：${formatDuration(totalRaw)} <span class="text-slate-400">（有效 ${formatDuration(totalEffective)}）</span>`;
+                        durationEl.innerHTML = durationText;
+                    }
+                }
+
+                // 更新高亮区域计时器
+                updateActiveTaskBannerTimer(task, totalRaw);
+
+                // 更新统计
+                updateDashboardStats();
+            }
+
+            updateTimer(); // 立即更新一次
+            window.runningIntervals[task.id] = setInterval(updateTimer, 1000);
+        }
+
+        function stopTaskTimer(taskId) {
+            if (window.runningIntervals[taskId]) {
+                clearInterval(window.runningIntervals[taskId]);
+                delete window.runningIntervals[taskId];
+            }
+        }
+
+        function stopAllTimers() {
+            Object.keys(window.runningIntervals).forEach(taskId => {
+                clearInterval(window.runningIntervals[taskId]);
+                delete window.runningIntervals[taskId];
+            });
+        }
+
+        // ----- 当前进行中的任务高亮区域 -----
+        function updateActiveTaskBanner() {
+            const banner = document.getElementById('active-task-banner');
+            if (!banner) return;
+
+            const runningTask = todayTasks.find(t => t.status === 'running');
+
+            if (!runningTask) {
+                banner.classList.add('hidden');
+                return;
+            }
+
+            banner.classList.remove('hidden');
+
+            const elapsed = calculateRunningTaskElapsed(runningTask);
+
+            banner.innerHTML = `
+                <div class="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAiIGhlaWdodD0iMjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGNpcmNsZSBjeD0iMiIgY3k9IjIiIHI9IjEiIGZpbGw9InJnYmEoMjU1LDI1NSwyNTUsMC4xNSkiLz48L3N2Zz4=')] opacity-50"></div>
+                <div class="active-task-content relative z-10 flex justify-between items-center">
+                    <div class="active-task-info">
+                        <div class="active-task-label text-xs font-medium text-blue-100 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                            <div class="w-1.5 h-1.5 rounded-full bg-white animate-pulse"></div>
+                            当前进行中
+                        </div>
+                        <div class="active-task-name text-2xl font-medium tracking-tight mb-1 truncate max-w-sm">${escapeHtml(runningTask.taskName)}</div>
+                        <div class="active-task-timer text-3xl font-mono tracking-tight opacity-90" data-banner-timer>${formatDuration(elapsed)}</div>
+                    </div>
+                    <div class="active-task-actions flex gap-2">
+                        <button class="banner-btn flex items-center gap-1.5 px-4 py-2 bg-white/20 hover:bg-white/30 text-white text-sm font-medium rounded-lg transition-colors backdrop-blur-sm" data-action="pause" data-task-id="${runningTask.id}"><iconify-icon icon="solar:pause-linear" style="stroke-width:1.5;"></iconify-icon>暂停</button>
+                        <button class="banner-btn flex items-center gap-1.5 px-4 py-2 bg-slate-900/80 hover:bg-slate-900 text-white text-sm font-medium rounded-lg transition-colors backdrop-blur-sm" data-action="complete" data-task-id="${runningTask.id}"><iconify-icon icon="solar:check-circle-linear" style="stroke-width:1.5;"></iconify-icon>结束</button>
+                    </div>
+                </div>
+            `;
+
+            // 绑定按钮事件
+            const buttons = banner.querySelectorAll('.banner-btn');
+            buttons.forEach(btn => {
+                btn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    const action = this.dataset.action;
+                    const taskId = this.dataset.taskId;
+                    handleTaskAction(taskId, action);
+                });
+            });
+        }
+
+        function updateActiveTaskBannerTimer(task, totalElapsed) {
+            const timerEl = document.querySelector('[data-banner-timer]');
+            if (timerEl) {
+                timerEl.textContent = formatDuration(totalElapsed);
+            }
+        }
+
+        function calculateRunningTaskElapsed(task) {
+            const currentSegment = task.segments[task.segments.length - 1];
+            if (!currentSegment || currentSegment.endTime !== null) {
+                return task.totalRawDuration;
+            }
+            return task.totalRawDuration + (Date.now() - currentSegment.startTime);
+        }
+
+        // ----- 统计概览更新 -----
+        function updateDashboardStats(tasks) {
+            const targetTasks = tasks !== undefined ? tasks : todayTasks;
+            const stats = calculateStats(targetTasks);
+            const containerSelector = tasks !== undefined ? '#history-stats-container' : '#stats-container';
+
+            const statCards = document.querySelectorAll(`${containerSelector} .stat-card`);
+            if (statCards.length < 4) return;
+
+            // 任务数量
+            const taskCountEl = statCards[0].querySelector('.stat-value span:first-child');
+            if (taskCountEl) taskCountEl.textContent = stats.taskCount;
+
+            // 总工时（小时）
+            const totalHoursEl = statCards[1].querySelector('.stat-value span:first-child');
+            if (totalHoursEl) totalHoursEl.textContent = formatNumber(stats.totalHours);
+
+            // 人天
+            const personDaysEl = statCards[2].querySelector('.stat-value span:first-child');
+            if (personDaysEl) personDaysEl.textContent = formatNumber(stats.personDays);
+
+            // 休息（小时）
+            const breakHoursEl = statCards[3].querySelector('.stat-value span:first-child');
+            if (breakHoursEl) breakHoursEl.textContent = formatNumber(stats.breakHours);
+        }
+
+        function calculateStats(tasks) {
+            if (tasks === undefined) tasks = todayTasks;
+
+            let totalRawMs = 0;
+            let totalEffectiveMs = 0;
+
+            tasks.forEach(task => {
+                let taskRaw = task.totalRawDuration;
+                let taskEffective = task.totalEffectiveDuration;
+
+                // 如果是 running 状态，加上当前段的已运行时间
+                if (task.status === 'running') {
+                    const currentSegment = task.segments[task.segments.length - 1];
+                    if (currentSegment && currentSegment.endTime === null) {
+                        const elapsed = Date.now() - currentSegment.startTime;
+                        taskRaw += elapsed;
+                        taskEffective += elapsed;
+                    }
+                }
+
+                totalRawMs += taskRaw;
+                totalEffectiveMs += taskEffective;
+            });
+
+            const totalHours = totalEffectiveMs / (1000 * 60 * 60);
+            const totalMinutes = totalEffectiveMs / (1000 * 60);
+            const personDays = totalMinutes / (HOURS_PER_DAY * 60);
+            const breakMinutes = (totalRawMs - totalEffectiveMs) / (1000 * 60);
+            const breakHours = breakMinutes / 60;
+
+            return {
+                taskCount: tasks.length,
+                totalHours: totalHours,
+                personDays: personDays,
+                breakHours: breakHours
+            };
+        }
+
+        // ----- 页面加载初始化 -----
+        function initDashboard() {
+            try {
+                console.log('[initDashboard] 开始初始化');
+                
+                // 加载今日任务
+                todayTasks = loadTodayTasks();
+                console.log('[initDashboard] 加载任务数:', todayTasks.length);
+
+                // 停止所有旧计时器
+                stopAllTimers();
+
+                // 清空容器
+                const container = document.getElementById('tasks-container');
+                if (container) {
+                    container.innerHTML = '';
+                    if (todayTasks.length === 0) {
+                        container.innerHTML = `
+                            <div class="empty-state flex flex-col items-center justify-center py-20 px-4 bg-white border border-slate-200 border-dashed rounded-xl">
+                                <div class="w-12 h-12 bg-slate-50 rounded-full flex items-center justify-center mb-4">
+                                    <iconify-icon icon="solar:document-add-linear" style="stroke-width:1.5;" class="text-2xl text-slate-400"></iconify-icon>
+                                </div>
+                                <div class="empty-state-text text-sm font-medium text-slate-900 mb-1">暂无任务</div>
+                                <div class="empty-state-hint text-xs text-slate-500">点击右上角"新建任务"开始计时</div>
+                            </div>
+                        `;
+                    }
+                }
+
+                // 渲染所有任务卡片
+                todayTasks.forEach(task => {
+                    try {
+                        renderTaskCard(task);
+                    } catch (e) {
+                        console.error('[initDashboard] 渲染任务卡片失败:', task, e);
+                    }
+                });
+
+                // 更新高亮区域和统计
+                updateActiveTaskBanner();
+                updateDashboardStats();
+
+                // 设置日期
+                const dateEl = document.getElementById('header-date');
+                if (dateEl) {
+                    const now = new Date();
+                    const weekdays = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];
+                    dateEl.textContent = `${now.getFullYear()}年${now.getMonth() + 1}月${now.getDate()}日 ${weekdays[now.getDay()]}`;
+                }
+                
+                console.log('[initDashboard] 初始化完成');
+            } catch (e) {
+                console.error('[initDashboard] 初始化失败:', e);
+            }
+        }
+
+        // ==========================================
+        // V2-007: 历史记录视图
+        // ==========================================
+
+        // ----- 获取默认历史日期（昨天）-----
+        function getDefaultHistoryDate() {
+            const yesterday = new Date();
+            yesterday.setDate(yesterday.getDate() - 1);
+            return formatDate(yesterday);
+        }
+
+        // ----- 加载历史任务 -----
+        function loadHistoryTasks(dateStr) {
+            const date = new Date(dateStr + 'T00:00:00');
+            return loadTasks(date);
+        }
+
+        // ----- 渲染历史视图 -----
+        function renderHistoryView(dateStr) {
+            const tasks = loadHistoryTasks(dateStr);
+            const container = document.getElementById('history-tasks-container');
+            const titleEl = document.getElementById('history-tasks-title');
+
+            if (titleEl) {
+                titleEl.textContent = `${dateStr} 的任务`;
+            }
+
+            if (container) {
+                container.innerHTML = '';
+                if (tasks.length === 0) {
+                    container.innerHTML = `
+                        <div class="empty-state flex flex-col items-center justify-center py-20 px-4 bg-white border border-slate-200 border-dashed rounded-xl">
+                            <div class="empty-state-text text-sm font-medium text-slate-900 mb-1">该日期暂无记录</div>
+                            <div class="empty-state-hint text-xs text-slate-500">选择其他日期查看</div>
+                        </div>
+                    `;
+                } else {
+                    tasks.forEach(task => {
+                        renderTaskCard(task, true, 'history-tasks-container');
+                    });
+                }
+            }
+
+            // 更新历史统计概览
+            updateDashboardStats(tasks);
+        }
+
+        // ----- 渲染设置视图 (V2-008) -----
+        function renderSettingsView() {
+            const container = document.getElementById('break-periods-list');
+            if (!container) return;
+
+            const breakPeriods = getBreakPeriods();
+
+            let html = '';
+            if (breakPeriods.length === 0) {
+                html = '<div class="text-sm text-slate-500 py-4">暂无休息时段配置</div>';
+            } else {
+                breakPeriods.forEach((period, index) => {
+                    html += buildBreakPeriodItemHTML(period, index);
+                });
+            }
+
+            container.innerHTML = html;
+            bindSettingsEvents();
+        }
+
+        function buildBreakPeriodItemHTML(period, index) {
+            return `
+                <div class="break-period-item bg-slate-50/50 border border-slate-200 rounded-xl p-4 relative group" data-break-index="${index}">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div class="flex flex-col gap-1.5">
+                            <label class="text-[11px] font-medium text-slate-500 uppercase tracking-wider">名称</label>
+                            <input type="text" class="px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500" data-break-name="${index}" value="${escapeHtml(period.name || '')}" placeholder="例如：午休">
+                        </div>
+                        <div class="flex flex-col gap-1.5">
+                            <label class="text-[11px] font-medium text-slate-500 uppercase tracking-wider">开始时间</label>
+                            <input type="time" class="px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500" data-break-start="${index}" value="${period.start || '12:00'}">
+                        </div>
+                        <div class="flex flex-col gap-1.5">
+                            <label class="text-[11px] font-medium text-slate-500 uppercase tracking-wider">结束时间</label>
+                            <input type="time" class="px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500" data-break-end="${index}" value="${period.end || '13:00'}">
+                        </div>
+                        <div class="flex flex-col gap-1.5">
+                            <label class="text-[11px] font-medium text-slate-500 uppercase tracking-wider">颜色</label>
+                            <div class="flex items-center gap-2">
+                                <input type="color" class="w-10 h-[38px] p-0.5 bg-white border border-slate-200 rounded cursor-pointer" data-break-color="${index}" value="${period.color || '#f59e0b'}">
+                                <button class="break-period-delete-btn ml-auto w-8 h-8 flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors" data-delete-break="${index}" title="删除">
+                                    <iconify-icon icon="solar:trash-bin-trash-linear" class="text-lg"></iconify-icon>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function bindSettingsEvents() {
+            // 添加休息时段按钮
+            const addBtn = document.getElementById('btn-add-break-period');
+            if (addBtn) {
+                addBtn.onclick = addBreakPeriod;
+            }
+
+            // 保存设置按钮
+            const saveBtn = document.getElementById('btn-save-settings');
+            if (saveBtn) {
+                saveBtn.onclick = saveSettings;
+            }
+
+            // 返回 Dashboard 按钮
+            const backBtn = document.getElementById('btn-back-to-dashboard');
+            if (backBtn) {
+                backBtn.onclick = function() {
+                    switchView('dashboard');
+                };
+            }
+
+            // 删除休息时段按钮
+            const deleteBtns = document.querySelectorAll('[data-delete-break]');
+            deleteBtns.forEach(btn => {
+                btn.onclick = function() {
+                    const index = parseInt(this.dataset.deleteBreak, 10);
+                    deleteBreakPeriod(index);
+                };
+            });
+        }
+
+        function addBreakPeriod() {
+            const container = document.getElementById('break-periods-list');
+            if (!container) return;
+
+            const breakPeriods = getBreakPeriods();
+            breakPeriods.push({ name: '', start: '12:00', end: '13:00', color: '#f59e0b' });
+
+            const index = breakPeriods.length - 1;
+            const html = buildBreakPeriodItemHTML(breakPeriods[index], index);
+
+            // 如果之前是空状态，清空容器
+            if (breakPeriods.length === 1) {
+                container.innerHTML = '';
+            }
+
+            container.insertAdjacentHTML('beforeend', html);
+            bindSettingsEvents();
+        }
+
+        function deleteBreakPeriod(index) {
+            const container = document.getElementById('break-periods-list');
+            if (!container) return;
+
+            // 收集当前所有输入的值
+            const items = container.querySelectorAll('.break-period-item');
+            const breakPeriods = [];
+            items.forEach((item, i) => {
+                if (i === index) return; // 跳过要删除的项
+                const nameInput = item.querySelector('[data-break-name]');
+                const startInput = item.querySelector('[data-break-start]');
+                const endInput = item.querySelector('[data-break-end]');
+                const colorInput = item.querySelector('[data-break-color]');
+                breakPeriods.push({
+                    name: nameInput ? nameInput.value : '',
+                    start: startInput ? startInput.value : '12:00',
+                    end: endInput ? endInput.value : '13:00',
+                    color: colorInput ? colorInput.value : '#f59e0b'
+                });
+            });
+
+            // 重新渲染
+            let html = '';
+            if (breakPeriods.length === 0) {
+                html = '<div class="text-sm text-slate-500 py-4">暂无休息时段配置</div>';
+            } else {
+                breakPeriods.forEach((period, i) => {
+                    html += buildBreakPeriodItemHTML(period, i);
+                });
+            }
+            container.innerHTML = html;
+            bindSettingsEvents();
+        }
+
+        function saveSettings() {
+            const container = document.getElementById('break-periods-list');
+            if (!container) return;
+
+            const items = container.querySelectorAll('.break-period-item');
+            const breakPeriods = [];
+
+            items.forEach((item, index) => {
+                const nameInput = item.querySelector(`[data-break-name="${index}"]`);
+                const startInput = item.querySelector(`[data-break-start="${index}"]`);
+                const endInput = item.querySelector(`[data-break-end="${index}"]`);
+                const colorInput = item.querySelector(`[data-break-color="${index}"]`);
+
+                const name = nameInput ? nameInput.value.trim() : '';
+                const start = startInput ? startInput.value : '';
+                const end = endInput ? endInput.value : '';
+                const color = colorInput ? colorInput.value : '#f59e0b';
+
+                if (name && start && end) {
+                    breakPeriods.push({ name, start, end, color });
+                }
+            });
+
+            saveBreakPeriods(breakPeriods);
+
+            // 重新计算所有任务的有效时长
+            recalculateAllTasksEffectiveDuration();
+
+            // 刷新 Dashboard 显示
+            todayTasks.forEach(task => renderTaskCard(task));
+            updateDashboardStats();
+            updateActiveTaskBanner();
+
+            alert('设置已保存');
+        }
+
+        // ----- 视图切换 -----
+        function switchView(viewName) {
+            const dashboardView = document.getElementById('active-task-banner');
+            const statsContainer = document.getElementById('stats-container');
+            const tasksSection = document.getElementById('dashboard-tasks-section');
+            const historyView = document.getElementById('history-view');
+            const settingsView = document.getElementById('settings-view');
+            const headerTitle = document.getElementById('header-title');
+            const headerDate = document.getElementById('header-date');
+
+            const navDashboard = document.getElementById('nav-dashboard');
+            const navToday = document.getElementById('nav-today');
+            const navHistory = document.getElementById('nav-history');
+            const navSettings = document.getElementById('nav-settings');
+
+            // 重置所有导航项高亮
+            [navDashboard, navToday, navHistory, navSettings].forEach(nav => {
+                if (nav) nav.classList.remove('active');
+            });
+
+            // 隐藏所有视图
+            if (settingsView) settingsView.classList.add('hidden');
+            if (historyView) historyView.classList.add('hidden');
+
+            if (viewName === 'dashboard') {
+                // 显示 Dashboard 视图
+                if (dashboardView) dashboardView.classList.remove('hidden');
+                if (statsContainer) statsContainer.classList.remove('hidden');
+                if (tasksSection) tasksSection.classList.remove('hidden');
+                if (headerTitle) headerTitle.textContent = '数据概览';
+                if (headerDate) headerDate.classList.remove('hidden');
+
+                if (navDashboard) navDashboard.classList.add('active');
+
+                // 恢复今日任务数据
+                initDashboard();
+            } else if (viewName === 'today') {
+                // 今日任务视图（同 Dashboard）
+                if (dashboardView) dashboardView.classList.remove('hidden');
+                if (statsContainer) statsContainer.classList.remove('hidden');
+                if (tasksSection) tasksSection.classList.remove('hidden');
+                if (headerTitle) headerTitle.textContent = '今日任务';
+                if (headerDate) headerDate.classList.remove('hidden');
+
+                if (navToday) navToday.classList.add('active');
+
+                initDashboard();
+            } else if (viewName === 'history') {
+                // 显示历史视图
+                if (dashboardView) dashboardView.classList.add('hidden');
+                if (statsContainer) statsContainer.classList.add('hidden');
+                if (tasksSection) tasksSection.classList.add('hidden');
+                if (historyView) historyView.classList.remove('hidden');
+                if (headerTitle) headerTitle.textContent = '历史记录';
+                if (headerDate) headerDate.classList.add('hidden');
+
+                if (navHistory) navHistory.classList.add('active');
+
+                // 初始化日期选择器
+                const datePicker = document.getElementById('history-date-picker');
+                if (datePicker && !datePicker.value) {
+                    datePicker.value = getDefaultHistoryDate();
+                }
+
+                // 加载历史数据
+                const selectedDate = datePicker ? datePicker.value : getDefaultHistoryDate();
+                renderHistoryView(selectedDate);
+            } else if (viewName === 'settings') {
+                // 显示设置视图
+                if (dashboardView) dashboardView.classList.add('hidden');
+                if (statsContainer) statsContainer.classList.add('hidden');
+                if (tasksSection) tasksSection.classList.add('hidden');
+                if (historyView) historyView.classList.add('hidden');
+                if (settingsView) settingsView.classList.remove('hidden');
+                if (headerTitle) headerTitle.textContent = '系统设置';
+                if (headerDate) headerDate.classList.add('hidden');
+
+                if (navSettings) navSettings.classList.add('active');
+
+                renderSettingsView();
+            }
+        }
+
+        // ----- 事件绑定 -----
+        function bindAllEvents() {
+            console.log('[bindAllEvents] 开始绑定事件');
+            
+            const btnNewTask = document.getElementById('btn-new-task');
+            if (btnNewTask) {
+                console.log('[bindAllEvents] 绑定新建任务按钮');
+                btnNewTask.addEventListener('click', handleNewTask);
+            } else {
+                console.warn('[bindAllEvents] 未找到新建任务按钮');
+            }
+
+            // 侧边栏导航事件
+            const navDashboard = document.getElementById('nav-dashboard');
+            const navToday = document.getElementById('nav-today');
+            const navHistory = document.getElementById('nav-history');
+            const navSettings = document.getElementById('nav-settings');
+
+            if (navDashboard) {
+                navDashboard.addEventListener('click', function() { switchView('dashboard'); });
+            }
+            if (navToday) {
+                navToday.addEventListener('click', function() { switchView('today'); });
+            }
+            if (navHistory) {
+                navHistory.addEventListener('click', function() { switchView('history'); });
+            }
+            if (navSettings) {
+                navSettings.addEventListener('click', function() { switchView('settings'); });
+            }
+
+            // 日期选择器事件
+            const datePicker = document.getElementById('history-date-picker');
+            if (datePicker) {
+                datePicker.addEventListener('change', function() {
+                    if (this.value) {
+                        renderHistoryView(this.value);
+                    }
+                });
+            }
+
+            // 导出按钮事件
+            const exportBtn = document.getElementById('export-btn');
+            if (exportBtn) {
+                exportBtn.addEventListener('click', exportData);
+            }
+
+            // 导入按钮事件
+            const importBtn = document.getElementById('import-btn');
+            const importFile = document.getElementById('import-file');
+            if (importBtn && importFile) {
+                importBtn.addEventListener('click', function() {
+                    importFile.click();
+                });
+                importFile.addEventListener('change', function() {
+                    if (this.files && this.files.length > 0) {
+                        importData(this.files[0]);
+                    }
+                });
+            }
+            
+            console.log('[bindAllEvents] 事件绑定完成');
+        }
+        
+        // 确保在 DOM 准备好后绑定事件和初始化
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', function() {
+                bindAllEvents();
+                initDashboard();
+                initTheme();
+            });
+        } else {
+            // DOM 已经加载完成
+            bindAllEvents();
+            initDashboard();
+            initTheme();
+        }
+
+        // ==========================================
+        // V2-009: 数据导出导入
+        // ==========================================
+
+        function exportData() {
+            const tasks = {};
+            const config = localStorage.getItem('time-tracker-config');
+
+            // Collect all time-tracker-tasks-* entries
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (key && key.startsWith('time-tracker-tasks-')) {
+                    const dateStr = key.replace('time-tracker-tasks-', '');
+                    const data = localStorage.getItem(key);
+                    if (data) {
+                        tasks[dateStr] = JSON.parse(data);
+                    }
+                }
+            }
+
+            const exportObj = {
+                version: '2.0',
+                exportDate: new Date().toISOString(),
+                tasks: tasks,
+                config: config ? JSON.parse(config) : { breakPeriods: [] }
+            };
+
+            const jsonStr = JSON.stringify(exportObj, null, 2);
+            const blob = new Blob([jsonStr], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+
+            const today = new Date();
+            const year = today.getFullYear();
+            const month = String(today.getMonth() + 1).padStart(2, '0');
+            const day = String(today.getDate()).padStart(2, '0');
+            const filename = `time-tracker-v2-backup-${year}-${month}-${day}.json`;
+
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        function convertV1ToV2(v1Data) {
+            const tasks = {};
+
+            // Convert records to tasks format
+            if (v1Data.records) {
+                for (const [dateStr, records] of Object.entries(v1Data.records)) {
+                    if (!Array.isArray(records)) continue;
+
+                    // Group records by taskName
+                    const taskGroups = {};
+                    records.forEach(record => {
+                        const name = record.taskName || '未命名任务';
+                        if (!taskGroups[name]) {
+                            taskGroups[name] = [];
+                        }
+                        taskGroups[name].push(record);
+                    });
+
+                    // Create tasks for each group
+                    tasks[dateStr] = [];
+                    for (const [taskName, groupRecords] of Object.entries(taskGroups)) {
+                        const task = createTask(taskName);
+                        task.status = 'completed';
+
+                        groupRecords.forEach(record => {
+                            const segment = {
+                                id: record.id || generateId(),
+                                startTime: record.startTime,
+                                endTime: record.endTime,
+                                rawDuration: record.rawDuration || 0,
+                                effectiveDuration: record.effectiveDuration || 0,
+                                breakOverlapMinutes: 0
+                            };
+                            task.segments.push(segment);
+                        });
+
+                        updateTaskTotals(task);
+                        tasks[dateStr].push(task);
+                    }
+                }
+            }
+
+            return {
+                version: '2.0',
+                exportDate: v1Data.exportDate || new Date().toISOString(),
+                tasks: tasks,
+                config: v1Data.config || { breakPeriods: [] }
+            };
+        }
+
+        function importData(file) {
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = JSON.parse(e.target.result);
+
+                    // Validate format
+                    if (!data || typeof data !== 'object') {
+                        alert('文件格式不正确');
+                        return;
+                    }
+
+                    // Check version and convert if needed
+                    let importData = data;
+                    if (data.version === '1.0') {
+                        alert('检测到 V1 格式数据，将尝试转换导入');
+                        importData = convertV1ToV2(data);
+                    } else if (data.version !== '2.0') {
+                        alert('文件格式不正确');
+                        return;
+                    }
+
+                    // Validate V2 structure
+                    if (!importData.tasks || typeof importData.tasks !== 'object' || !importData.config) {
+                        alert('文件格式不正确');
+                        return;
+                    }
+
+                    // Confirm import
+                    if (!confirm('导入将覆盖现有数据，是否继续？')) {
+                        return;
+                    }
+
+                    // Clear existing data
+                    const keysToRemove = [];
+                    for (let i = 0; i < localStorage.length; i++) {
+                        const key = localStorage.key(i);
+                        if (key && (key.startsWith('time-tracker-tasks-') || key === 'time-tracker-config')) {
+                            keysToRemove.push(key);
+                        }
+                    }
+                    keysToRemove.forEach(key => localStorage.removeItem(key));
+
+                    // Write imported data
+                    for (const [dateStr, taskList] of Object.entries(importData.tasks)) {
+                        localStorage.setItem('time-tracker-tasks-' + dateStr, JSON.stringify(taskList));
+                    }
+                    localStorage.setItem('time-tracker-config', JSON.stringify(importData.config));
+
+                    // Refresh page
+                    window.location.reload();
+
+                } catch (err) {
+                    alert('文件格式不正确');
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        // ==========================================
+        // TASK-001: 主题切换系统
+        // ==========================================
+
+        const THEME_STORAGE_KEY = 'time-tracker-theme';
+
+        function getTheme() {
+            const saved = localStorage.getItem(THEME_STORAGE_KEY);
+            if (saved === 'light' || saved === 'dark' || saved === 'system') {
+                return saved;
+            }
+            return 'light';
+        }
+
+        function setTheme(theme) {
+            if (theme !== 'light' && theme !== 'dark' && theme !== 'system') {
+                theme = 'light';
+            }
+
+            localStorage.setItem(THEME_STORAGE_KEY, theme);
+
+            const body = document.body;
+            if (theme === 'dark') {
+                body.classList.add('bp5-dark');
+            } else if (theme === 'light') {
+                body.classList.remove('bp5-dark');
+            } else if (theme === 'system') {
+                const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+                if (prefersDark) {
+                    body.classList.add('bp5-dark');
+                } else {
+                    body.classList.remove('bp5-dark');
+                }
+            }
+
+            // 同步更新设置页面中的 select
+            const themeSelect = document.getElementById('theme-select');
+            if (themeSelect) {
+                themeSelect.value = theme;
+            }
+        }
+
+        function toggleTheme() {
+            const current = getTheme();
+            const next = current === 'light' ? 'dark' : 'light';
+            setTheme(next);
+        }
+
+        function initTheme() {
+            const theme = getTheme();
+            setTheme(theme);
+
+            // 监听系统主题变化
+            if (window.matchMedia) {
+                const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+                const handleChange = function(e) {
+                    if (getTheme() === 'system') {
+                        if (e.matches) {
+                            document.body.classList.add('bp5-dark');
+                        } else {
+                            document.body.classList.remove('bp5-dark');
+                        }
+                    }
+                };
+                if (mediaQuery.addEventListener) {
+                    mediaQuery.addEventListener('change', handleChange);
+                } else if (mediaQuery.addListener) {
+                    mediaQuery.addListener(handleChange);
+                }
+            }
+        }
+
+        // 绑定主题选择器事件
+        document.addEventListener('DOMContentLoaded', function() {
+            const themeSelect = document.getElementById('theme-select');
+            if (themeSelect) {
+                themeSelect.addEventListener('change', function() {
+                    setTheme(this.value);
+                });
+            }
+        });
+
+        console.log('V2 Modern Dashboard UI 已加载');
     </script>
 </body>
 </html>

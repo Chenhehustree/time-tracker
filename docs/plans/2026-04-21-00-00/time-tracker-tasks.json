@@ -1,0 +1,173 @@
+{
+  "topic": "工作计时器与人天统计应用",
+  "created": "2026-04-21",
+  "tasks": [
+    {
+      "id": "TASK-001",
+      "title": "项目初始化与 HTML 骨架搭建",
+      "priority": "P0",
+      "depends_on": [],
+      "user_story": "US-001",
+      "description": "创建单 HTML 文件 time-tracker.html，搭建应用的基础结构和样式框架。包含：页面标题、任务输入框、开始/停止按钮区域、今日记录列表占位、统计面板占位、历史记录区域占位、设置区域占位。CSS 部分定义基础样式（字体、间距、按钮样式、休息时段颜色变量）。JS 部分仅挂载空的事件监听器。完成后，打开 HTML 文件应能看到完整的界面布局，虽无功能但结构清晰。",
+      "files": {
+        "create": [
+          "time-tracker.html"
+        ],
+        "modify": [],
+        "test": []
+      },
+      "acceptance_criteria": [
+        "AC1: 双击 time-tracker.html 能在浏览器中正常打开，无控制台报错",
+        "AC2: 页面包含：任务输入框、明显的开始按钮、今日记录列表区域、统计面板区域",
+        "AC3: 按钮和列表有基础样式，布局整洁不错乱"
+      ],
+      "tech_notes": "遵循 ADR-002（单文件内嵌 CSS+JS）。CSS 使用原生写法，颜色变量用 CSS 自定义属性（--break-color-1, --break-color-2）。JS 代码放在 body 末尾。"
+    },
+    {
+      "id": "TASK-002",
+      "title": "计时器核心功能（开始/停止/状态恢复）",
+      "priority": "P0",
+      "depends_on": [
+        "TASK-001"
+      ],
+      "user_story": "US-001",
+      "description": "实现计时器的核心交互逻辑。用户输入任务名并点击开始后，按钮变为停止状态，页面实时显示已运行时间（时:分格式）。点击停止后，记录本次的开始和结束时间。页面刷新时，检测 localStorage 中是否存在未完成的计时状态，如果有则自动恢复计时。使用 setInterval 每秒更新显示，使用 Date.now() 获取时间戳。",
+      "files": {
+        "create": [],
+        "modify": [
+          "time-tracker.html"
+        ],
+        "test": []
+      },
+      "acceptance_criteria": [
+        "AC1: 输入任务名并点击开始后，按钮文本变为'停止'，显示实时运行时间（如'01:23'）",
+        "AC2: 点击停止后，按钮恢复为'开始'，运行时间停止更新",
+        "AC3: 计时过程中刷新页面，页面加载后自动恢复到计时状态，且运行时间包含刷新前已用的时间",
+        "AC4: 未输入任务名时点击开始，提示用户输入任务名"
+      ],
+      "tech_notes": "计时状态存储格式：{ currentTask: string, startTime: number, isRunning: boolean }。使用 beforeunload 事件确保页面关闭前保存状态。"
+    },
+    {
+      "id": "TASK-003",
+      "title": "任务记录管理与 localStorage 存储",
+      "priority": "P0",
+      "depends_on": [
+        "TASK-002"
+      ],
+      "user_story": "US-001",
+      "description": "实现任务记录的持久化存储。停止计时后，将记录（任务名、开始时间、结束时间、日期）保存到 localStorage。今日记录列表实时渲染所有当天的记录。每条记录显示任务名、开始时间、结束时间、原始时长。提供删除单条记录的功能。数据以日期为 key 存储（如 time-tracker-2026-04-21），值为记录数组。",
+      "files": {
+        "create": [],
+        "modify": [
+          "time-tracker.html"
+        ],
+        "test": []
+      },
+      "acceptance_criteria": [
+        "AC1: 停止计时后，今日记录列表中出现一条新记录，显示任务名、时间段、原始时长",
+        "AC2: 刷新页面后，今日记录列表保持不变（数据从 localStorage 恢复）",
+        "AC3: 点击记录旁的删除按钮，该记录从列表和 localStorage 中移除",
+        "AC4: localStorage 中数据格式为 JSON，以日期为 key"
+      ],
+      "tech_notes": "记录对象结构：{ id: string, taskName: string, startTime: number, endTime: number, rawDuration: number }。id 使用 Date.now() + 随机数生成。localStorage key 前缀为 'time-tracker-'。"
+    },
+    {
+      "id": "TASK-004",
+      "title": "休息时间扣除逻辑",
+      "priority": "P0",
+      "depends_on": [
+        "TASK-003"
+      ],
+      "user_story": "US-002",
+      "description": "实现固定休息时段的扣除逻辑。默认配置两个休息时段（午休 11:30-13:30，晚间休息 17:30-19:00），每个时段可配置名称、时间、颜色。计算有效工时时，从原始时长中扣除与休息时段重叠的部分。在时间轴/记录列表中，休息时段用不同颜色标注。用户可在设置中修改休息时段配置。",
+      "files": {
+        "create": [],
+        "modify": [
+          "time-tracker.html"
+        ],
+        "test": []
+      },
+      "acceptance_criteria": [
+        "AC1: 默认显示两个休息时段（11:30-13:30、17:30-19:00），各有不同颜色标注",
+        "AC2: 如果一条工作记录与休息时段重叠，有效时长 = 原始时长 - 重叠部分",
+        "AC3: 统计面板中同时显示'总在线时间'和'有效工时（扣除休息）'",
+        "AC4: 用户可在设置中修改休息时段的起止时间和颜色"
+      ],
+      "tech_notes": "休息时段配置存储在 localStorage key 'time-tracker-config' 中。重叠计算逻辑：遍历所有休息时段，计算与 [startTime, endTime] 的交集，累加重叠分钟数。休息颜色使用 CSS 自定义属性实现。"
+    },
+    {
+      "id": "TASK-005",
+      "title": "人天换算与统计面板",
+      "priority": "P0",
+      "depends_on": [
+        "TASK-004"
+      ],
+      "user_story": "US-003",
+      "description": "实现人天换算和统计面板。统计面板显示今日的关键指标：总在线时间（小时:分）、有效工时（扣除休息后，小时:分）、人天换算值（有效工时 / 8，保留2位小数）。例如'6.5 小时 = 0.81 人天'。统计数字实时更新，当记录增删改时自动重新计算。",
+      "files": {
+        "create": [],
+        "modify": [
+          "time-tracker.html"
+        ],
+        "test": []
+      },
+      "acceptance_criteria": [
+        "AC1: 统计面板显示今日总在线时间、有效工时、人天换算三个数字",
+        "AC2: 人天换算公式：有效工时（分钟）/ 480 分钟，保留2位小数",
+        "AC3: 8 小时有效工时显示为 1.00 人天，4 小时显示为 0.50 人天",
+        "AC4: 新增或删除记录后，统计数字自动重新计算并更新"
+      ],
+      "tech_notes": "人天常量 HOURS_PER_DAY = 8。换算时注意精度：先转为分钟计算，再除 480。显示格式：X.XX 人天。"
+    },
+    {
+      "id": "TASK-006",
+      "title": "历史记录查看与编辑功能",
+      "priority": "P1",
+      "depends_on": [
+        "TASK-003"
+      ],
+      "user_story": "US-004",
+      "description": "实现历史记录的查看和编辑功能。页面提供日期选择器，用户可以切换到任意日期查看当天的任务记录。在历史记录中，用户可以修改已有记录的开始/结束时间（通过时间输入框），可以删除记录，也可以手动添加新记录（事后补录）。编辑后自动重新计算该日期的统计。",
+      "files": {
+        "create": [],
+        "modify": [
+          "time-tracker.html"
+        ],
+        "test": []
+      },
+      "acceptance_criteria": [
+        "AC1: 提供日期选择器，切换日期后显示该日期的任务记录",
+        "AC2: 点击记录的编辑按钮，可以修改该记录的开始/结束时间",
+        "AC3: 可以删除任意日期的某条记录",
+        "AC4: 提供'手动添加记录'按钮，输入任务名、开始时间、结束时间后添加到对应日期",
+        "AC5: 编辑或添加记录后，该日期的统计自动重新计算"
+      ],
+      "tech_notes": "历史视图与今日视图共用同一套渲染逻辑，通过传入不同日期参数区分。编辑记录时保持 id 不变，仅修改 startTime/endTime。"
+    },
+    {
+      "id": "TASK-007",
+      "title": "数据导出与导入功能",
+      "priority": "P1",
+      "depends_on": [
+        "TASK-003"
+      ],
+      "user_story": "US-005",
+      "description": "实现数据的 JSON 导出和导入功能。点击'导出'按钮时，将所有 localStorage 中的数据（所有日期的记录 + 休息配置）打包为一个 JSON 文件并触发下载。点击'导入'按钮时，用户选择之前导出的 JSON 文件，解析后写入 localStorage，导入前提示是否覆盖现有数据。",
+      "files": {
+        "create": [],
+        "modify": [
+          "time-tracker.html"
+        ],
+        "test": []
+      },
+      "acceptance_criteria": [
+        "AC1: 点击导出按钮，下载一个包含所有数据和配置的 JSON 文件",
+        "AC2: 点击导入按钮，可选择本地 JSON 文件进行恢复",
+        "AC3: 导入前弹出确认框：'导入将覆盖现有数据，是否继续？'",
+        "AC4: 导入完成后，页面刷新并显示导入的数据",
+        "AC5: 导入格式错误的 JSON 文件时，提示'文件格式不正确'且不清除现有数据"
+      ],
+      "tech_notes": "导出数据格式：{ version: '1.0', exportDate: string, records: {...}, config: {...} }。使用 Blob + URL.createObjectURL 实现下载。使用 FileReader 读取导入文件。"
+    }
+  ]
+}

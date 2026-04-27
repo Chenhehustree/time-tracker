@@ -1,0 +1,167 @@
+{
+  "topic": "计时工具 BlueprintUI 重绘与功能优化",
+  "created": "2026-04-22",
+  "tasks": [
+    {
+      "id": "TASK-001",
+      "title": "引入 BlueprintUI CSS 基础样式和主题系统",
+      "priority": "P0",
+      "depends_on": [],
+      "user_story": "US-001",
+      "description": "在 time-tracker.html 中通过 CDN 引入 @blueprintjs/core CSS 文件，建立 Blueprint 视觉基础。包括：添加 CSS 链接、定义 Blueprint 色彩变量覆盖、创建 bp5-dark 主题切换机制、更新 body 和基础容器样式。",
+      "files": {
+        "create": [],
+        "modify": ["time-tracker.html"],
+        "test": []
+      },
+      "acceptance_criteria": [
+        "AC1: 页面加载后 Blueprint CSS 正确加载，无 404 错误",
+        "AC2: 现有元素应用 Blueprint 基础样式后视觉正常，无严重错位",
+        "AC3: 切换 bp5-dark 类后，背景色和文字色正确反转"
+      ],
+      "tech_notes": "使用 unpkg CDN 引入 blueprint.css；保留现有布局结构，仅替换颜色和字体变量；主题切换通过切换 body 的 bp5-dark 类实现。"
+    },
+    {
+      "id": "TASK-002",
+      "title": "Completed 任务追加记录功能",
+      "priority": "P0",
+      "depends_on": ["TASK-001"],
+      "user_story": "US-008",
+      "description": "扩展任务状态机，使 completed 任务可以追加新的时间段。修改 canStart() 逻辑，为 completed 状态任务渲染'追加记录'按钮，点击后创建新 segment 并将状态切换为 running。",
+      "files": {
+        "create": [],
+        "modify": ["time-tracker.html"],
+        "test": ["test/timer.test.js"]
+      },
+      "acceptance_criteria": [
+        "AC1: Completed 任务卡片显示'追加记录'按钮（Blueprint 风格）",
+        "AC2: 点击后任务状态变为 running，并开始新时间段计时",
+        "AC3: 追加的时间段与原有记录在同一任务下展示",
+        "AC4: 再次结束任务后，任务回到 completed 状态，仍可再次追加"
+      ],
+      "tech_notes": "保持 completed 为逻辑终态，仅增加'创建新 segment'的例外路径；不影响现有状态机其他分支；确保总时长计算正确累加。"
+    },
+    {
+      "id": "TASK-003",
+      "title": "任务卡片精简展示 + 展开独立面板",
+      "priority": "P0",
+      "depends_on": ["TASK-001"],
+      "user_story": "US-002",
+      "description": "重构任务卡片默认视图，仅展示任务名、状态标签、累计时长和最近一个时间段。添加'展开详情'按钮，点击后在卡片下方滑出全宽独立面板，使用 CSS max-height + transition 实现平滑动画。",
+      "files": {
+        "create": [],
+        "modify": ["time-tracker.html"],
+        "test": []
+      },
+      "acceptance_criteria": [
+        "AC1: 默认状态卡片不显示完整时间段列表和时间轴",
+        "AC2: 点击'展开详情'后下方滑出独立面板，动画平滑",
+        "AC3: 独立面板宽度与卡片一致（全宽），内部空间充足",
+        "AC4: 再次点击可收起面板"
+      ],
+      "tech_notes": "独立面板使用 div.segments-panel，初始 max-height: 0，展开时设置为足够大的值（如 2000px）配合 transition；避免使用第三方动画库。"
+    },
+    {
+      "id": "TASK-004",
+      "title": "独立面板内 24小时时间轴优化",
+      "priority": "P0",
+      "depends_on": ["TASK-003"],
+      "user_story": "US-002",
+      "description": "将 24小时拖拽时间轴从卡片内部迁移到独立面板中，利用充足宽度（700px+）优化展示和交互。确保短时间段（15分钟以上）清晰可见，拖拽手柄操作顺畅。",
+      "files": {
+        "create": [],
+        "modify": ["time-tracker.html"],
+        "test": []
+      },
+      "acceptance_criteria": [
+        "AC1: 时间轴在独立面板内宽度不少于 700px",
+        "AC2: 15 分钟的时间段宽度至少 20px，清晰可见",
+        "AC3: 拖拽手柄（16px）操作顺畅，tooltip 实时显示时间",
+        "AC4: 冲突检测正常工作，重叠时手柄变红"
+      ],
+      "tech_notes": "保持现有拖拽逻辑，仅需调整容器宽度和样式；使用时间轴容器 width: 100% 配合 padding 实现内边距。"
+    },
+    {
+      "id": "TASK-005",
+      "title": "任务删除功能（带确认弹窗）",
+      "priority": "P1",
+      "depends_on": ["TASK-001"],
+      "user_story": "US-009",
+      "description": "在任务卡片右上角添加 Blueprint 风格的'更多'菜单按钮（⋮），下拉菜单包含'删除任务'选项。点击后弹出确认对话框，显示任务名和警告信息，确认后从列表和 localStorage 中移除该任务。",
+      "files": {
+        "create": [],
+        "modify": ["time-tracker.html"],
+        "test": ["test/storage.test.js"]
+      },
+      "acceptance_criteria": [
+        "AC1: 任务卡片右上角显示'更多'菜单按钮",
+        "AC2: 菜单中包含'删除任务'选项",
+        "AC3: 点击后弹出确认对话框，显示'确定删除任务【XXX】及所有时间段？此操作不可恢复。'",
+        "AC4: 确认后任务立即从 UI 和 localStorage 中移除",
+        "AC5: 取消后对话框关闭，任务不受影响"
+      ],
+      "tech_notes": "确认对话框使用纯 HTML/CSS 模拟 Blueprint Dialog 样式（遮罩层 + 居中卡片）；删除后更新 Dashboard 统计。"
+    },
+    {
+      "id": "TASK-006",
+      "title": "任务名称编辑功能",
+      "priority": "P1",
+      "depends_on": ["TASK-001"],
+      "user_story": "US-010",
+      "description": "实现点击任务名称区域切换为可编辑输入框，支持失焦保存、回车保存、Esc 取消。空名称时显示红色边框提示并阻止保存。",
+      "files": {
+        "create": [],
+        "modify": ["time-tracker.html"],
+        "test": []
+      },
+      "acceptance_criteria": [
+        "AC1: 点击任务名后变为可编辑输入框，保留原有文字",
+        "AC2: 失焦或按回车后保存新名称，localStorage 同步更新",
+        "AC3: 按 Esc 取消编辑，恢复原标题",
+        "AC4: 空名称时输入框边框变红（.bp5-intent-danger），无法保存"
+      ],
+      "tech_notes": "使用 contenteditable 或 input 元素实现；编辑状态下暂停任务名的点击事件冒泡；保存时更新 task.taskName 并重新渲染卡片。"
+    },
+    {
+      "id": "TASK-007",
+      "title": "Dashboard 统计区 Blueprint 化",
+      "priority": "P1",
+      "depends_on": ["TASK-001"],
+      "user_story": "US-011",
+      "description": "使用 Blueprint Card 和 Callout 组件样式重新设计 Dashboard 顶部的 4 个统计卡片（任务数、总工时、人天、休息）。每个卡片包含图标、大数值、小标签，使用 Blueprint 色彩系统。",
+      "files": {
+        "create": [],
+        "modify": ["time-tracker.html"],
+        "test": []
+      },
+      "acceptance_criteria": [
+        "AC1: 4 个统计卡片使用 Blueprint Card 样式（圆角、阴影、边框）",
+        "AC2: 每个卡片包含图标（使用 Blueprint 图标字体或 SVG）、大数值、标签",
+        "AC3: 使用 Blueprint 色彩系统：任务数=蓝色、总工时=绿色、人天=紫色、休息=橙色",
+        "AC4: 统计数据实时更新，与任务状态变化同步"
+      ],
+      "tech_notes": "使用 .bp5-card、.bp5-callout 类；图标使用 Blueprint 图标字体（需引入 blueprint-icons.css）或保留现有 SVG。"
+    },
+    {
+      "id": "TASK-008",
+      "title": "暗黑主题切换功能",
+      "priority": "P2",
+      "depends_on": ["TASK-001", "TASK-007"],
+      "user_story": "US-012",
+      "description": "在设置页面增加'主题'选项，支持明/暗/跟随系统三种模式。切换后全局应用 bp5-dark 类，所有 Blueprint 组件自动适配暗黑样式。主题偏好保存到 localStorage，下次打开自动应用。",
+      "files": {
+        "create": [],
+        "modify": ["time-tracker.html"],
+        "test": []
+      },
+      "acceptance_criteria": [
+        "AC1: 设置页面显示主题选择（明/暗/跟随系统）",
+        "AC2: 切换到暗色后，全局背景变暗，文字变亮，所有组件适配",
+        "AC3: 切换到亮色后恢复默认白色主题",
+        "AC4: 主题选择保存到 localStorage，刷新页面后自动恢复",
+        "AC5: '跟随系统'选项监听 prefers-color-scheme 媒体查询"
+      ],
+      "tech_notes": "使用 select 或 button group 实现主题选择；监听 window.matchMedia('(prefers-color-scheme: dark)') 实现跟随系统；主题切换时更新 body 类名并触发 UI 重渲染。"
+    }
+  ]
+}

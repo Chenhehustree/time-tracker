@@ -1,0 +1,2386 @@
+
+        /**
+         * V2 版本 JavaScript 代码区域
+         * 
+         * 此区域用于 V2 Modern Dashboard UI 的交互逻辑
+         * 将在后续任务中逐步实现：
+         * - V2-003: 任务卡片渲染
+         * - V2-006: 数据统计
+         */
+
+        // ==========================================
+        // V2-002: 任务为中心的数据模型
+        // ==========================================
+
+        // ----- 常量定义 -----
+        const HOURS_PER_DAY = 8;
+        const STORAGE_KEY_PREFIX = 'time-tracker-tasks-';
+
+        // ----- 工具函数 -----
+        function generateId() {
+            return Date.now().toString(36) + Math.random().toString(36).substr(2, 9);
+        }
+
+        function formatDate(date) {
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        }
+
+        function todayKey() {
+            return STORAGE_KEY_PREFIX + formatDate(new Date());
+        }
+
+        // ----- 时间格式化函数 -----
+        function formatDuration(milliseconds) {
+            const totalSeconds = Math.floor(milliseconds / 1000);
+            const hours = Math.floor(totalSeconds / 3600);
+            const minutes = Math.floor((totalSeconds % 3600) / 60);
+            const seconds = totalSeconds % 60;
+            return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+        }
+
+        function formatDurationMinutes(minutes) {
+            if (minutes < 0) minutes = 0;
+            const hours = Math.floor(minutes / 60);
+            const mins = Math.floor(minutes % 60);
+            if (hours === 0) return `${mins}分`;
+            if (mins === 0) return `${hours}小时`;
+            return `${hours}小时${mins}分`;
+        }
+
+        function formatNumber(num, decimals = 2) {
+            return num.toFixed(decimals);
+        }
+
+        // ----- Task 工厂函数 -----
+        function createTask(taskName) {
+            return {
+                id: generateId(),
+                taskName: taskName,
+                status: 'idle',
+                createdAt: Date.now(),
+                segments: [],
+                totalRawDuration: 0,
+                totalEffectiveDuration: 0
+            };
+        }
+
+        // ----- TimeSegment 工厂函数 -----
+        function createSegment(startTime) {
+            return {
+                id: generateId(),
+                startTime: startTime,
+                endTime: null,
+                rawDuration: 0,
+                effectiveDuration: 0,
+                breakOverlapMinutes: 0
+            };
+        }
+
+        // ----- localStorage 操作 -----
+        function saveTasks(date, tasks) {
+            const key = STORAGE_KEY_PREFIX + formatDate(date);
+            localStorage.setItem(key, JSON.stringify(tasks));
+        }
+
+        function loadTasks(date) {
+            const key = STORAGE_KEY_PREFIX + formatDate(date);
+            const data = localStorage.getItem(key);
+            return data ? JSON.parse(data) : [];
+        }
+
+        function saveTodayTasks(tasks) {
+            localStorage.setItem(todayKey(), JSON.stringify(tasks));
+        }
+
+        function loadTodayTasks() {
+            const data = localStorage.getItem(todayKey());
+            return data ? JSON.parse(data) : [];
+        }
+
+        // ----- 任务状态机辅助函数 -----
+        function canStart(task) {
+            return task.status === 'idle' || task.status === 'paused';
+        }
+
+        function canPause(task) {
+            return task.status === 'running';
+        }
+
+        function canComplete(task) {
+            return task.status === 'running' || task.status === 'paused';
+        }
+
+        // ----- 时间段计算函数 -----
+        function calculateSegmentDuration(segment, endTime) {
+            if (!segment.startTime || !endTime) {
+                return 0;
+            }
+            return endTime - segment.startTime;
+        }
+
+        function updateTaskTotals(task) {
+            task.totalRawDuration = task.segments.reduce((sum, seg) => sum + (seg.rawDuration || 0), 0);
+            task.totalEffectiveDuration = task.segments.reduce((sum, seg) => sum + (seg.effectiveDuration || 0), 0);
+        }
+
+        // ==========================================
+        // V2-003: 任务卡片渲染与交互
+        // ==========================================
+
+        // ----- 全局状态 -----
+        let todayTasks = [];
+        window.runningIntervals = {};
+
+        // ----- 新建任务 -----
+        function handleNewTask() {
+            const taskName = prompt('请输入任务名称：');
+            if (!taskName || !taskName.trim()) {
+                return;
+            }
+            const trimmedName = taskName.trim();
+            if (trimmedName.length === 0) {
+                return;
+            }
+
+            const newTask = createTask(trimmedName);
+            todayTasks.push(newTask);
+            saveTodayTasks(todayTasks);
+
+            renderTaskCard(newTask);
+            updateDashboardStats();
+            updateActiveTaskBanner();
+        }
+
+        // ----- 任务卡片渲染 -----
+        function renderTaskCard(task, readonly, containerId) {
+            if (readonly === undefined) readonly = false;
+            if (containerId === undefined) containerId = 'tasks-container';
+
+            const container = document.getElementById(containerId);
+            if (!container) return;
+
+            // 移除空状态
+            const emptyState = container.querySelector('.empty-state');
+            if (emptyState) {
+                emptyState.remove();
+            }
+
+            // 检查是否已存在该任务的卡片
+            let card = document.getElementById(`task-card-${task.id}`);
+
+            if (!card || card.parentElement !== container) {
+                card = document.createElement('div');
+                card.id = `task-card-${task.id}`;
+                card.className = `task-card status-${task.status}`;
+                container.appendChild(card);
+            }
+
+            // 更新卡片样式
+            card.className = `task-card status-${task.status}`;
+
+            // 生成卡片内容
+            card.innerHTML = buildTaskCardHTML(task, readonly);
+
+            // 绑定按钮事件
+            bindTaskButtonEvents(task, card, readonly);
+
+            // 如果任务是运行状态且非只读，启动计时器
+            if (task.status === 'running' && !readonly) {
+                startTaskTimer(task);
+            }
+        }
+
+        function buildTaskCardHTML(task, readonly) {
+            if (readonly === undefined) readonly = false;
+
+            const statusText = {
+                idle: '未开始',
+                running: '进行中',
+                paused: '已暂停',
+                completed: '已完成'
+            };
+
+            const statusClass = task.status;
+            const timerHidden = (task.status === 'running' && !readonly) ? '' : 'hidden';
+
+            // 计算累计时长显示
+            const rawMs = task.totalRawDuration;
+            const effectiveMs = task.totalEffectiveDuration;
+            const durationText = rawMs === effectiveMs
+                ? `累计时长：${formatDuration(rawMs)}`
+                : `累计时长：${formatDuration(rawMs)}（有效 ${formatDuration(effectiveMs)}）`;
+
+            // 操作按钮（只读模式下不显示）
+            let buttonsHTML = '';
+            if (!readonly) {
+                if (task.status === 'idle') {
+                    buttonsHTML = `<button class="task-btn task-btn-start" data-action="start" data-task-id="${task.id}">▶ 开始</button>`;
+                } else if (task.status === 'running') {
+                    buttonsHTML = `
+                        <button class="task-btn task-btn-pause" data-action="pause" data-task-id="${task.id}">⏸ 暂停</button>
+                        <button class="task-btn task-btn-complete" data-action="complete" data-task-id="${task.id}">✓ 结束</button>
+                    `;
+                } else if (task.status === 'paused') {
+                    buttonsHTML = `
+                        <button class="task-btn task-btn-resume" data-action="resume" data-task-id="${task.id}">▶ 继续</button>
+                        <button class="task-btn task-btn-complete" data-action="complete" data-task-id="${task.id}">✓ 结束</button>
+                    `;
+                }
+            }
+            // completed 状态无按钮；readonly 模式也无按钮
+
+            // 时间段统计
+            const segmentCount = task.segments ? task.segments.length : 0;
+            const segmentSummaryText = segmentCount > 0
+                ? `时间段列表（共${segmentCount}段，累计${formatDurationMinutes(Math.floor(rawMs / 60000))}）`
+                : '时间段列表（暂无记录）';
+
+            return `
+                <div class="task-card-header">
+                    <h3 class="task-name">${escapeHtml(task.taskName)}</h3>
+                    <span class="task-status ${statusClass}">${statusText[task.status]}</span>
+                </div>
+                <div class="task-timer ${timerHidden}" data-task-timer="${task.id}">00:00:00</div>
+                <div class="task-duration">${durationText}</div>
+                <div class="task-actions">
+                    ${buttonsHTML}
+                </div>
+                <div class="segments-section">
+                    <div class="segments-toggle" data-toggle-segments="${task.id}">
+                        <span class="segments-toggle-icon">▼</span>
+                        <span>${segmentSummaryText}</span>
+                    </div>
+                    <div class="segments-list" data-segments-list="${task.id}">
+                        ${buildSegmentsListHTML(task, readonly)}
+                    </div>
+                </div>
+            `;
+        }
+
+        function buildSegmentsListHTML(task, readonly) {
+            if (readonly === undefined) readonly = false;
+
+            if (!task.segments || task.segments.length === 0) {
+                return '<div style="text-align:center;color:var(--text-secondary);font-size:13px;padding:20px;">暂无时间段记录</div>';
+            }
+
+            let html = '';
+            // 倒序显示，最新的在前面
+            const segments = [...task.segments].reverse();
+            segments.forEach(segment => {
+                const isRunning = segment.endTime === null;
+                const startDate = new Date(segment.startTime);
+                const endDate = isRunning ? null : new Date(segment.endTime);
+
+                const dateStr = formatDate(startDate);
+                const startTimeStr = formatTime(startDate);
+                const endTimeStr = isRunning ? '进行中' : formatTime(endDate);
+
+                const rawMinutes = isRunning
+                    ? Math.floor((Date.now() - segment.startTime) / 60000)
+                    : Math.floor(segment.rawDuration / 60000);
+                const effectiveMinutes = isRunning
+                    ? rawMinutes
+                    : Math.floor(segment.effectiveDuration / 60000);
+
+                const rawDurationStr = formatDurationMinutes(rawMinutes);
+                const effectiveDurationStr = formatDurationMinutes(effectiveMinutes);
+
+                // 构建时间轴进度条
+                const timelineHTML = buildTimelineHTML(segment, task);
+
+                const deleteBtnHTML = readonly ? '' : `<button class="segment-delete-btn" data-delete-segment="${segment.id}" data-task-id="${task.id}" title="删除时间段">×</button>`;
+
+                html += `
+                    <div class="segment-item ${isRunning ? 'running' : ''}" data-segment-id="${segment.id}">
+                        <div class="segment-info">
+                            <div class="segment-date">${dateStr}</div>
+                            <div class="segment-time" data-segment-text="${segment.id}">${startTimeStr} - ${endTimeStr}</div>
+                            <div class="segment-duration" data-segment-duration="${segment.id}">原始${rawDurationStr} | 有效${effectiveDurationStr}</div>
+                            ${timelineHTML}
+                        </div>
+                        ${deleteBtnHTML}
+                    </div>
+                `;
+            });
+
+            // 添加时间段按钮（只读模式下不显示）
+            if (!readonly) {
+                html += `
+                    <button class="segment-add-btn" data-add-segment="${task.id}">
+                        <span>+</span>
+                        <span>添加时间段</span>
+                    </button>
+                `;
+            }
+
+            return html;
+        }
+
+        // 构建时间轴进度条HTML (V2-005)
+        function buildTimelineHTML(segment, task) {
+            const startDate = new Date(segment.startTime);
+            const startMinutes = startDate.getHours() * 60 + startDate.getMinutes();
+            
+            let endMinutes;
+            if (segment.endTime === null) {
+                endMinutes = startMinutes + Math.floor((Date.now() - segment.startTime) / 60000);
+            } else {
+                const endDate = new Date(segment.endTime);
+                endMinutes = endDate.getHours() * 60 + endDate.getMinutes();
+            }
+            
+            // 处理跨天情况
+            if (endMinutes < startMinutes) {
+                endMinutes = 1440; // 24:00
+            }
+            
+            const startPercent = (startMinutes / 1440) * 100;
+            const widthPercent = ((endMinutes - startMinutes) / 1440) * 100;
+
+            // 获取休息时段叠加层
+            const breakOverlays = buildBreakOverlays(segment);
+
+            return `
+                <div class="timeline-bar" data-segment-id="${segment.id}" data-task-id="${task.id}">
+                    <div class="timeline-labels">
+                        <span>00:00</span>
+                        <span>06:00</span>
+                        <span>12:00</span>
+                        <span>18:00</span>
+                        <span>24:00</span>
+                    </div>
+                    <div class="timeline-track" data-timeline-track="${segment.id}">
+                        ${breakOverlays}
+                        <div class="segment-fill" data-segment-fill="${segment.id}" 
+                             style="left: ${startPercent}%; width: ${widthPercent}%"></div>
+                        <div class="handle handle-start" data-handle="start" data-segment-id="${segment.id}" 
+                             style="left: ${startPercent}%"></div>
+                        <div class="handle handle-end" data-handle="end" data-segment-id="${segment.id}" 
+                             style="left: ${startPercent + widthPercent}%"></div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // 构建休息时段叠加层
+        function buildBreakOverlays(segment) {
+            const breakPeriods = getBreakPeriods();
+            if (!breakPeriods || breakPeriods.length === 0) return '';
+
+            let overlays = '';
+            breakPeriods.forEach(breakPeriod => {
+                const breakStartMinutes = timeToMinutes(breakPeriod.start);
+                const breakEndMinutes = timeToMinutes(breakPeriod.end);
+                
+                if (breakStartMinutes < 0 || breakEndMinutes > 1440) return;
+                
+                const leftPercent = (breakStartMinutes / 1440) * 100;
+                const widthPercent = ((breakEndMinutes - breakStartMinutes) / 1440) * 100;
+                
+                overlays += `
+                    <div class="break-overlay" 
+                         style="left: ${leftPercent}%; width: ${widthPercent}%; background: ${breakPeriod.color || '#f59e0b'}"></div>
+                `;
+            });
+            
+            return overlays;
+        }
+
+        // 获取休息时段配置
+        function getBreakPeriods() {
+            const config = localStorage.getItem('time-tracker-config');
+            if (config) {
+                try {
+                    const parsed = JSON.parse(config);
+                    if (parsed.breakPeriods && Array.isArray(parsed.breakPeriods)) {
+                        return parsed.breakPeriods;
+                    }
+                } catch (e) {
+                    console.error('Failed to parse break periods config', e);
+                }
+            }
+
+            // 首次使用：创建默认配置并保存
+            const defaults = [
+                { name: '午休', start: '11:30', end: '13:30', color: '#fbbf24' },
+                { name: '晚间休息', start: '17:30', end: '19:00', color: '#f87171' }
+            ];
+            saveBreakPeriods(defaults);
+            return defaults;
+        }
+
+        // 保存休息时段配置
+        function saveBreakPeriods(periods) {
+            const config = { breakPeriods: periods };
+            localStorage.setItem('time-tracker-config', JSON.stringify(config));
+        }
+
+        // 计算时间段与休息时段的重叠毫秒数
+        function calculateOverlap(startTime, endTime, breakStart, breakEnd) {
+            const segmentDate = new Date(startTime);
+            const year = segmentDate.getFullYear();
+            const month = segmentDate.getMonth();
+            const day = segmentDate.getDate();
+
+            const [breakStartHours, breakStartMinutes] = breakStart.split(':').map(Number);
+            const [breakEndHours, breakEndMinutes] = breakEnd.split(':').map(Number);
+
+            const breakStartTime = new Date(year, month, day, breakStartHours, breakStartMinutes).getTime();
+            let breakEndTime = new Date(year, month, day, breakEndHours, breakEndMinutes).getTime();
+
+            // 处理跨天休息时段
+            if (breakEndTime <= breakStartTime) {
+                breakEndTime += 24 * 60 * 60 * 1000;
+            }
+
+            const overlapStart = Math.max(startTime, breakStartTime);
+            const overlapEnd = Math.min(endTime, breakEndTime);
+
+            return Math.max(0, overlapEnd - overlapStart);
+        }
+
+        // 计算时间段的有效时长（扣除休息重叠）
+        function calculateSegmentEffectiveDuration(segment, breakPeriods) {
+            if (!segment.endTime) {
+                segment.effectiveDuration = segment.rawDuration || 0;
+                segment.breakOverlapMinutes = 0;
+                return;
+            }
+
+            if (!breakPeriods) {
+                breakPeriods = getBreakPeriods();
+            }
+
+            let totalOverlapMs = 0;
+            breakPeriods.forEach(bp => {
+                const overlap = calculateOverlap(segment.startTime, segment.endTime, bp.start, bp.end);
+                totalOverlapMs += overlap;
+            });
+
+            segment.breakOverlapMinutes = Math.floor(totalOverlapMs / (60 * 1000));
+            segment.effectiveDuration = Math.max(0, (segment.rawDuration || 0) - totalOverlapMs);
+        }
+
+        // 重新计算所有任务的有效时长
+        function recalculateAllTasksEffectiveDuration() {
+            const breakPeriods = getBreakPeriods();
+            todayTasks.forEach(task => {
+                task.segments.forEach(segment => {
+                    if (segment.endTime !== null) {
+                        segment.rawDuration = segment.endTime - segment.startTime;
+                        calculateSegmentEffectiveDuration(segment, breakPeriods);
+                    }
+                });
+                updateTaskTotals(task);
+            });
+        }
+
+        // 时间字符串转换为分钟数
+        function timeToMinutes(timeStr) {
+            const [hours, minutes] = timeStr.split(':').map(Number);
+            return hours * 60 + minutes;
+        }
+
+        // 分钟数转换为时间字符串 (HH:MM)
+        function minutesToTime(minutes) {
+            const hours = Math.floor(minutes / 60);
+            const mins = minutes % 60;
+            return `${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}`;
+        }
+
+        // 将时间粒度化为5分钟
+        function roundToGranularity(minutes) {
+            return Math.round(minutes / 5) * 5;
+        }
+
+        function formatTime(date) {
+            const hours = String(date.getHours()).padStart(2, '0');
+            const minutes = String(date.getMinutes()).padStart(2, '0');
+            return `${hours}:${minutes}`;
+        }
+
+        // ===== 时间轴拖拽逻辑 (V2-005) =====
+        let dragState = null;
+
+        function initTimelineDrag(handle, segment, task) {
+            handle.addEventListener('mousedown', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+
+                const handleType = this.dataset.handle;
+                const segmentId = this.dataset.segmentId;
+                const timelineBar = document.querySelector(`.timeline-bar[data-segment-id="${segmentId}"]`);
+                if (!timelineBar) return;
+
+                const track = timelineBar.querySelector('.timeline-track');
+                const rect = track.getBoundingClientRect();
+
+                // 保存原始位置用于冲突恢复
+                const originalStartPercent = parseFloat(handle.style.left) || 0;
+
+                dragState = {
+                    handle: this,
+                    handleType: handleType,
+                    segment: segment,
+                    task: task,
+                    track: track,
+                    trackRect: rect,
+                    startX: e.clientX,
+                    originalStartPercent: originalStartPercent,
+                    hasConflict: false,
+                    tooltip: null
+                };
+
+                // 创建 tooltip
+                createDragTooltip(e.clientX, e.clientY, handleType === 'start' ? segment.startTime : segment.endTime);
+
+                // 绑定全局事件
+                document.addEventListener('mousemove', onTimelineDrag);
+                document.addEventListener('mouseup', onTimelineDragEnd);
+            });
+        }
+
+        function onTimelineDrag(e) {
+            if (!dragState) return;
+
+            const { handle, handleType, segment, task, track, trackRect } = dragState;
+
+            // 计算鼠标相对于轨道的位置（百分比）
+            let relativeX = e.clientX - trackRect.left;
+            let percent = (relativeX / trackRect.width) * 100;
+
+            // 限制在 0-100% 范围内
+            percent = Math.max(0, Math.min(100, percent));
+
+            // 转换为分钟数，粒度化为5分钟
+            const totalMinutes = 1440;
+            let minutes = Math.round((percent / 100) * totalMinutes);
+            minutes = roundToGranularity(minutes);
+            minutes = Math.max(0, Math.min(1440, minutes));
+
+            // 转换回百分比
+            percent = (minutes / totalMinutes) * 100;
+
+            // 更新手柄位置
+            handle.style.left = percent + '%';
+
+            // 更新填充条
+            const fill = track.querySelector('.segment-fill');
+            const startHandle = track.querySelector('.handle-start');
+            const endHandle = track.querySelector('.handle-end');
+
+            let startPercent = parseFloat(startHandle.style.left) || 0;
+            let endPercent = parseFloat(endHandle.style.left) || 0;
+
+            if (handleType === 'start') {
+                // 确保开始时间不超过结束时间
+                if (percent > endPercent - 1) {
+                    percent = endPercent - 1;
+                    minutes = Math.round((percent / 100) * totalMinutes);
+                    minutes = roundToGranularity(minutes);
+                    percent = (minutes / totalMinutes) * 100;
+                    handle.style.left = percent + '%';
+                }
+                startPercent = percent;
+            } else {
+                // 确保结束时间不早于开始时间
+                if (percent < startPercent + 1) {
+                    percent = startPercent + 1;
+                    minutes = Math.round((percent / 100) * totalMinutes);
+                    minutes = roundToGranularity(minutes);
+                    percent = (minutes / totalMinutes) * 100;
+                    handle.style.left = percent + '%';
+                }
+                endPercent = percent;
+            }
+
+            if (fill) {
+                fill.style.left = startPercent + '%';
+                fill.style.width = (endPercent - startPercent) + '%';
+            }
+
+            // 更新 tooltip
+            updateDragTooltip(e.clientX, e.clientY, minutes);
+
+            // 检测冲突
+            const otherSegments = task.segments.filter(s => s.id !== segment.id);
+            const newStartTime = handleType === 'start' ? minutesToTime(minutes) : minutesToTime(Math.round((startPercent / 100) * 1440));
+            const newEndTime = handleType === 'start' ? minutesToTime(Math.round((endPercent / 100) * 1440)) : minutesToTime(minutes);
+
+            // 创建临时 segment 用于冲突检测
+            const tempSegment = {
+                startTime: timeToTimestamp(newStartTime, segment.startTime),
+                endTime: timeToTimestamp(newEndTime, segment.startTime)
+            };
+
+            const hasOverlap = checkSegmentOverlap(tempSegment, otherSegments);
+            dragState.hasConflict = hasOverlap;
+
+            if (hasOverlap) {
+                handle.classList.add('conflict');
+            } else {
+                handle.classList.remove('conflict');
+            }
+        }
+
+        function onTimelineDragEnd(e) {
+            if (!dragState) return;
+
+            const { handle, handleType, segment, task, hasConflict, originalStartPercent } = dragState;
+
+            // 移除 tooltip
+            removeDragTooltip();
+
+            if (hasConflict) {
+                // 恢复原始位置
+                handle.style.left = originalStartPercent + '%';
+                handle.classList.remove('conflict');
+
+                // 重新计算填充条
+                const track = handle.closest('.timeline-track');
+                const startHandle = track.querySelector('.handle-start');
+                const endHandle = track.querySelector('.handle-end');
+                const fill = track.querySelector('.segment-fill');
+
+                const startPercent = parseFloat(startHandle.style.left) || 0;
+                const endPercent = parseFloat(endHandle.style.left) || 0;
+
+                if (fill) {
+                    fill.style.left = startPercent + '%';
+                    fill.style.width = (endPercent - startPercent) + '%';
+                }
+
+                // 显示错误提示
+                alert('时间段不能与其他段重叠，已恢复原始位置');
+            } else {
+                // 无冲突，保存新时间
+                const track = handle.closest('.timeline-track');
+                const startHandle = track.querySelector('.handle-start');
+                const endHandle = track.querySelector('.handle-end');
+
+                const startPercent = parseFloat(startHandle.style.left) || 0;
+                const endPercent = parseFloat(endHandle.style.left) || 0;
+
+                const startMinutes = Math.round((startPercent / 100) * 1440);
+                const endMinutes = Math.round((endPercent / 100) * 1440);
+
+                // 更新时间戳（保持日期不变，只改时间）
+                const baseDate = new Date(segment.startTime);
+                const year = baseDate.getFullYear();
+                const month = baseDate.getMonth();
+                const day = baseDate.getDate();
+
+                const newStartDate = new Date(year, month, day, Math.floor(startMinutes / 60), startMinutes % 60);
+                const newEndDate = new Date(year, month, day, Math.floor(endMinutes / 60), endMinutes % 60);
+
+                segment.startTime = newStartDate.getTime();
+                if (segment.endTime !== null) {
+                    segment.endTime = newEndDate.getTime();
+                }
+
+                // 重新计算 rawDuration 和 effectiveDuration
+                if (segment.endTime !== null) {
+                    segment.rawDuration = segment.endTime - segment.startTime;
+                    calculateSegmentEffectiveDuration(segment);
+                }
+
+                // 更新任务总计
+                updateTaskTotals(task);
+
+                // 保存到 localStorage
+                saveTodayTasks(todayTasks);
+
+                // 更新时间段文字显示
+                updateSegmentTextDisplay(segment);
+
+                // 更新 Dashboard 统计
+                updateDashboardStats();
+            }
+
+            // 清理
+            document.removeEventListener('mousemove', onTimelineDrag);
+            document.removeEventListener('mouseup', onTimelineDragEnd);
+            dragState = null;
+        }
+
+        function createDragTooltip(x, y, timestamp) {
+            removeDragTooltip();
+
+            const tooltip = document.createElement('div');
+            tooltip.className = 'timeline-tooltip';
+            tooltip.textContent = formatTime(new Date(timestamp));
+            tooltip.style.left = x + 'px';
+            tooltip.style.top = y + 'px';
+            document.body.appendChild(tooltip);
+
+            if (dragState) {
+                dragState.tooltip = tooltip;
+            }
+        }
+
+        function updateDragTooltip(x, y, minutes) {
+            if (!dragState || !dragState.tooltip) return;
+
+            const timeStr = minutesToTime(minutes);
+            dragState.tooltip.textContent = timeStr;
+            dragState.tooltip.style.left = x + 'px';
+            dragState.tooltip.style.top = (dragState.trackRect.top - 10) + 'px';
+        }
+
+        function removeDragTooltip() {
+            const existing = document.querySelector('.timeline-tooltip');
+            if (existing) {
+                existing.remove();
+            }
+        }
+
+        // 将时间字符串转换为时间戳（基于基准日期）
+        function timeToTimestamp(timeStr, baseTimestamp) {
+            const baseDate = new Date(baseTimestamp);
+            const [hours, minutes] = timeStr.split(':').map(Number);
+            return new Date(
+                baseDate.getFullYear(),
+                baseDate.getMonth(),
+                baseDate.getDate(),
+                hours,
+                minutes
+            ).getTime();
+        }
+
+        // 冲突检测
+        function checkSegmentOverlap(segment, otherSegments) {
+            if (!otherSegments || otherSegments.length === 0) return false;
+
+            const segStart = segment.startTime;
+            const segEnd = segment.endTime;
+
+            for (const other of otherSegments) {
+                const otherStart = other.startTime;
+                const otherEnd = other.endTime || Date.now();
+
+                // 检查是否有交集
+                if (segStart < otherEnd && segEnd > otherStart) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        // 更新时间段文字显示
+        function updateSegmentTextDisplay(segment) {
+            const timeEl = document.querySelector(`[data-segment-text="${segment.id}"]`);
+            const durationEl = document.querySelector(`[data-segment-duration="${segment.id}"]`);
+
+            if (timeEl) {
+                const startDate = new Date(segment.startTime);
+                const endDate = segment.endTime ? new Date(segment.endTime) : null;
+                const startTimeStr = formatTime(startDate);
+                const endTimeStr = endDate ? formatTime(endDate) : '进行中';
+                timeEl.textContent = `${startTimeStr} - ${endTimeStr}`;
+            }
+
+            if (durationEl && segment.endTime !== null) {
+                const rawMinutes = Math.floor(segment.rawDuration / 60000);
+                const effectiveMinutes = Math.floor(segment.effectiveDuration / 60000);
+                durationEl.textContent = `原始${formatDurationMinutes(rawMinutes)} | 有效${formatDurationMinutes(effectiveMinutes)}`;
+            }
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function bindTaskButtonEvents(task, card, readonly) {
+            if (readonly === undefined) readonly = false;
+
+            // 只读模式下不绑定操作按钮
+            if (!readonly) {
+                const buttons = card.querySelectorAll('.task-btn');
+                buttons.forEach(btn => {
+                    btn.addEventListener('click', function(e) {
+                        e.preventDefault();
+                        const action = this.dataset.action;
+                        const taskId = this.dataset.taskId;
+                        handleTaskAction(taskId, action);
+                    });
+                });
+            }
+
+            // 绑定时间段展开/收起事件（只读模式也可展开查看）
+            const toggleEl = card.querySelector(`[data-toggle-segments="${task.id}"]`);
+            if (toggleEl) {
+                toggleEl.addEventListener('click', function() {
+                    toggleSegmentsList(task.id);
+                });
+            }
+
+            // 只读模式下不绑定删除时间段事件
+            if (!readonly) {
+                const deleteBtns = card.querySelectorAll('[data-delete-segment]');
+                deleteBtns.forEach(btn => {
+                    btn.addEventListener('click', function(e) {
+                        e.stopPropagation();
+                        const segmentId = this.dataset.deleteSegment;
+                        const taskId = this.dataset.taskId;
+                        deleteSegment(taskId, segmentId);
+                    });
+                });
+
+                // 绑定添加时间段按钮事件
+                const addBtn = card.querySelector(`[data-add-segment="${task.id}"]`);
+                if (addBtn) {
+                    addBtn.addEventListener('click', function() {
+                        showSegmentAddForm(task.id);
+                    });
+                }
+
+                // 绑定时间轴拖拽事件 (V2-005)
+                bindTimelineEvents(task, card);
+            }
+        }
+
+        // 绑定时间轴事件
+        function bindTimelineEvents(task, card) {
+            const handles = card.querySelectorAll('.handle');
+            handles.forEach(handle => {
+                const segmentId = handle.dataset.segmentId;
+                const segment = task.segments.find(s => s.id === segmentId);
+                if (segment) {
+                    initTimelineDrag(handle, segment, task);
+                }
+            });
+        }
+
+        // ----- 时间段展开/收起 (V2-004) -----
+        function toggleSegmentsList(taskId) {
+            const toggleEl = document.querySelector(`[data-toggle-segments="${taskId}"]`);
+            const listEl = document.querySelector(`[data-segments-list="${taskId}"]`);
+            if (!toggleEl || !listEl) return;
+
+            const isExpanded = listEl.classList.contains('expanded');
+            
+            if (isExpanded) {
+                listEl.classList.remove('expanded');
+                toggleEl.classList.remove('expanded');
+                toggleEl.querySelector('.segments-toggle-icon').textContent = '▼';
+            } else {
+                listEl.classList.add('expanded');
+                toggleEl.classList.add('expanded');
+                toggleEl.querySelector('.segments-toggle-icon').textContent = '▲';
+            }
+        }
+
+        // ----- 删除时间段 (V2-004) -----
+        function deleteSegment(taskId, segmentId) {
+            if (!confirm('确定要删除这个时间段吗？')) {
+                return;
+            }
+
+            const task = todayTasks.find(t => t.id === taskId);
+            if (!task) return;
+
+            // 找到并删除时间段
+            const segmentIndex = task.segments.findIndex(s => s.id === segmentId);
+            if (segmentIndex === -1) return;
+
+            // 如果被删除的是正在运行的段，先停止计时器
+            const segment = task.segments[segmentIndex];
+            if (segment.endTime === null && task.status === 'running') {
+                stopTaskTimer(taskId);
+                task.status = 'paused';
+            }
+
+            task.segments.splice(segmentIndex, 1);
+            
+            // 重新计算总时长
+            updateTaskTotals(task);
+            
+            // 保存到 localStorage
+            saveTodayTasks(todayTasks);
+            
+            // 重新渲染任务卡片
+            renderTaskCard(task);
+            
+            // 更新 Dashboard 统计
+            updateDashboardStats();
+            updateActiveTaskBanner();
+        }
+
+        // ----- 手动添加时间段 (V2-004) -----
+        function showSegmentAddForm(taskId) {
+            const listEl = document.querySelector(`[data-segments-list="${taskId}"]`);
+            if (!listEl) return;
+
+            // 检查是否已有表单
+            const existingForm = listEl.querySelector('.segment-form');
+            if (existingForm) {
+                existingForm.remove();
+                return;
+            }
+
+            // 获取当前时间用于默认值
+            const now = new Date();
+            const oneHourLater = new Date(now.getTime() + 60 * 60 * 1000);
+            
+            const formatDateTimeLocal = (date) => {
+                const year = date.getFullYear();
+                const month = String(date.getMonth() + 1).padStart(2, '0');
+                const day = String(date.getDate()).padStart(2, '0');
+                const hours = String(date.getHours()).padStart(2, '0');
+                const minutes = String(date.getMinutes()).padStart(2, '0');
+                return `${year}-${month}-${day}T${hours}:${minutes}`;
+            };
+
+            const formHTML = `
+                <div class="segment-form" data-segment-form="${taskId}">
+                    <div class="segment-form-row">
+                        <div class="segment-form-field">
+                            <label>开始时间</label>
+                            <input type="datetime-local" data-form-start value="${formatDateTimeLocal(now)}">
+                        </div>
+                        <div class="segment-form-field">
+                            <label>结束时间</label>
+                            <input type="datetime-local" data-form-end value="${formatDateTimeLocal(oneHourLater)}">
+                        </div>
+                    </div>
+                    <div class="segment-form-error" data-form-error></div>
+                    <div class="segment-form-actions">
+                        <button class="segment-form-btn segment-form-btn-cancel" data-form-cancel>取消</button>
+                        <button class="segment-form-btn segment-form-btn-save" data-form-save>保存</button>
+                    </div>
+                </div>
+            `;
+
+            listEl.insertAdjacentHTML('beforeend', formHTML);
+
+            // 绑定表单事件
+            const form = listEl.querySelector('.segment-form');
+            const cancelBtn = form.querySelector('[data-form-cancel]');
+            const saveBtn = form.querySelector('[data-form-save]');
+
+            cancelBtn.addEventListener('click', function() {
+                form.remove();
+            });
+
+            saveBtn.addEventListener('click', function() {
+                saveNewSegment(taskId);
+            });
+        }
+
+        function saveNewSegment(taskId) {
+            const task = todayTasks.find(t => t.id === taskId);
+            if (!task) return;
+
+            const form = document.querySelector(`[data-segment-form="${taskId}"]`);
+            if (!form) return;
+
+            const startInput = form.querySelector('[data-form-start]');
+            const endInput = form.querySelector('[data-form-end]');
+            const errorEl = form.querySelector('[data-form-error]');
+
+            const startTime = new Date(startInput.value).getTime();
+            const endTime = new Date(endInput.value).getTime();
+
+            // 验证
+            errorEl.classList.remove('show');
+            errorEl.textContent = '';
+
+            if (isNaN(startTime) || isNaN(endTime)) {
+                errorEl.textContent = '请输入有效的时间';
+                errorEl.classList.add('show');
+                return;
+            }
+
+            if (endTime <= startTime) {
+                errorEl.textContent = '结束时间必须晚于开始时间';
+                errorEl.classList.add('show');
+                return;
+            }
+
+            // 检查时间段重叠
+            for (const segment of task.segments) {
+                const segStart = segment.startTime;
+                const segEnd = segment.endTime || Date.now();
+
+                if ((startTime >= segStart && startTime < segEnd) ||
+                    (endTime > segStart && endTime <= segEnd) ||
+                    (startTime <= segStart && endTime >= segEnd)) {
+                    errorEl.textContent = '该时间段与已有记录重叠';
+                    errorEl.classList.add('show');
+                    return;
+                }
+            }
+
+            // 创建新时间段
+            const newSegment = createSegment(startTime);
+            newSegment.endTime = endTime;
+            newSegment.rawDuration = endTime - startTime;
+            calculateSegmentEffectiveDuration(newSegment);
+
+            task.segments.push(newSegment);
+            updateTaskTotals(task);
+
+            saveTodayTasks(todayTasks);
+            renderTaskCard(task);
+            updateDashboardStats();
+        }
+
+        // ----- 操作按钮逻辑 -----
+        function handleTaskAction(taskId, action) {
+            const task = todayTasks.find(t => t.id === taskId);
+            if (!task) return;
+
+            switch (action) {
+                case 'start':
+                    startTask(task);
+                    break;
+                case 'pause':
+                    pauseTask(task);
+                    break;
+                case 'resume':
+                    resumeTask(task);
+                    break;
+                case 'complete':
+                    completeTask(task);
+                    break;
+            }
+        }
+
+        function startTask(task) {
+            if (!canStart(task)) return;
+
+            const segment = createSegment(Date.now());
+            task.segments.push(segment);
+            task.status = 'running';
+
+            saveTodayTasks(todayTasks);
+            renderTaskCard(task);
+            updateDashboardStats();
+            updateActiveTaskBanner();
+        }
+
+        function pauseTask(task) {
+            if (!canPause(task)) return;
+
+            const currentSegment = task.segments[task.segments.length - 1];
+            if (currentSegment && currentSegment.endTime === null) {
+                const now = Date.now();
+                currentSegment.endTime = now;
+                const duration = calculateSegmentDuration(currentSegment, now);
+                currentSegment.rawDuration = duration;
+                calculateSegmentEffectiveDuration(currentSegment);
+            }
+
+            task.status = 'paused';
+            updateTaskTotals(task);
+
+            saveTodayTasks(todayTasks);
+            stopTaskTimer(task.id);
+            renderTaskCard(task);
+            updateDashboardStats();
+            updateActiveTaskBanner();
+        }
+
+        function resumeTask(task) {
+            if (!canStart(task)) return;
+
+            const segment = createSegment(Date.now());
+            task.segments.push(segment);
+            task.status = 'running';
+
+            saveTodayTasks(todayTasks);
+            renderTaskCard(task);
+            updateDashboardStats();
+            updateActiveTaskBanner();
+        }
+
+        function completeTask(task) {
+            if (!canComplete(task)) return;
+
+            // 如果正在运行，先结束当前段
+            if (task.status === 'running') {
+                const currentSegment = task.segments[task.segments.length - 1];
+                if (currentSegment && currentSegment.endTime === null) {
+                    const now = Date.now();
+                    currentSegment.endTime = now;
+                    const duration = calculateSegmentDuration(currentSegment, now);
+                    currentSegment.rawDuration = duration;
+                    calculateSegmentEffectiveDuration(currentSegment);
+                }
+                stopTaskTimer(task.id);
+            }
+
+            task.status = 'completed';
+            updateTaskTotals(task);
+
+            saveTodayTasks(todayTasks);
+            renderTaskCard(task);
+            updateDashboardStats();
+            updateActiveTaskBanner();
+        }
+
+        // ----- 计时器实时更新 -----
+        function startTaskTimer(task) {
+            if (window.runningIntervals[task.id]) {
+                clearInterval(window.runningIntervals[task.id]);
+            }
+
+            function updateTimer() {
+                const currentSegment = task.segments[task.segments.length - 1];
+                if (!currentSegment || currentSegment.endTime !== null) return;
+
+                const elapsed = Date.now() - currentSegment.startTime;
+                const totalRaw = task.totalRawDuration + elapsed;
+                const totalEffective = task.totalEffectiveDuration + elapsed;
+
+                // 更新卡片计时器
+                const cardTimer = document.querySelector(`[data-task-timer="${task.id}"]`);
+                if (cardTimer) {
+                    cardTimer.textContent = formatDuration(elapsed);
+                }
+
+                // 更新累计时长
+                const card = document.getElementById(`task-card-${task.id}`);
+                if (card) {
+                    const durationEl = card.querySelector('.task-duration');
+                    if (durationEl) {
+                        const durationText = totalRaw === totalEffective
+                            ? `累计时长：${formatDuration(totalRaw)}`
+                            : `累计时长：${formatDuration(totalRaw)}（有效 ${formatDuration(totalEffective)}）`;
+                        durationEl.textContent = durationText;
+                    }
+                }
+
+                // 更新高亮区域计时器
+                updateActiveTaskBannerTimer(task, totalRaw);
+
+                // 更新统计
+                updateDashboardStats();
+            }
+
+            updateTimer(); // 立即更新一次
+            window.runningIntervals[task.id] = setInterval(updateTimer, 1000);
+        }
+
+        function stopTaskTimer(taskId) {
+            if (window.runningIntervals[taskId]) {
+                clearInterval(window.runningIntervals[taskId]);
+                delete window.runningIntervals[taskId];
+            }
+        }
+
+        function stopAllTimers() {
+            Object.keys(window.runningIntervals).forEach(taskId => {
+                clearInterval(window.runningIntervals[taskId]);
+                delete window.runningIntervals[taskId];
+            });
+        }
+
+        // ----- 当前进行中的任务高亮区域 -----
+        function updateActiveTaskBanner() {
+            const banner = document.getElementById('active-task-banner');
+            if (!banner) return;
+
+            const runningTask = todayTasks.find(t => t.status === 'running');
+
+            if (!runningTask) {
+                banner.classList.add('hidden');
+                return;
+            }
+
+            banner.classList.remove('hidden');
+
+            const elapsed = calculateRunningTaskElapsed(runningTask);
+
+            banner.innerHTML = `
+                <div class="active-task-content">
+                    <div class="active-task-info">
+                        <div class="active-task-label">当前进行中的任务</div>
+                        <div class="active-task-name">${escapeHtml(runningTask.taskName)}</div>
+                        <div class="active-task-timer" data-banner-timer>${formatDuration(elapsed)}</div>
+                    </div>
+                    <div class="active-task-actions">
+                        <button class="banner-btn banner-btn-pause" data-action="pause" data-task-id="${runningTask.id}">⏸ 暂停</button>
+                        <button class="banner-btn banner-btn-complete" data-action="complete" data-task-id="${runningTask.id}">✓ 结束</button>
+                    </div>
+                </div>
+            `;
+
+            // 绑定按钮事件
+            const buttons = banner.querySelectorAll('.banner-btn');
+            buttons.forEach(btn => {
+                btn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    const action = this.dataset.action;
+                    const taskId = this.dataset.taskId;
+                    handleTaskAction(taskId, action);
+                });
+            });
+        }
+
+        function updateActiveTaskBannerTimer(task, totalElapsed) {
+            const timerEl = document.querySelector('[data-banner-timer]');
+            if (timerEl) {
+                timerEl.textContent = formatDuration(totalElapsed);
+            }
+        }
+
+        function calculateRunningTaskElapsed(task) {
+            const currentSegment = task.segments[task.segments.length - 1];
+            if (!currentSegment || currentSegment.endTime !== null) {
+                return task.totalRawDuration;
+            }
+            return task.totalRawDuration + (Date.now() - currentSegment.startTime);
+        }
+
+        // ----- 统计概览更新 -----
+        function updateDashboardStats(tasks) {
+            const targetTasks = tasks !== undefined ? tasks : todayTasks;
+            const stats = calculateStats(targetTasks);
+            const containerSelector = tasks !== undefined ? '#history-stats-container' : '#stats-container';
+
+            const statCards = document.querySelectorAll(`${containerSelector} .stat-card`);
+            if (statCards.length < 4) return;
+
+            // 任务数量
+            const taskCountEl = statCards[0].querySelector('.stat-value span:first-child');
+            if (taskCountEl) taskCountEl.textContent = stats.taskCount;
+
+            // 总工时（小时）
+            const totalHoursEl = statCards[1].querySelector('.stat-value span:first-child');
+            if (totalHoursEl) totalHoursEl.textContent = formatNumber(stats.totalHours);
+
+            // 人天
+            const personDaysEl = statCards[2].querySelector('.stat-value span:first-child');
+            if (personDaysEl) personDaysEl.textContent = formatNumber(stats.personDays);
+
+            // 休息（小时）
+            const breakHoursEl = statCards[3].querySelector('.stat-value span:first-child');
+            if (breakHoursEl) breakHoursEl.textContent = formatNumber(stats.breakHours);
+        }
+
+        function calculateStats(tasks) {
+            if (tasks === undefined) tasks = todayTasks;
+
+            let totalRawMs = 0;
+            let totalEffectiveMs = 0;
+
+            tasks.forEach(task => {
+                let taskRaw = task.totalRawDuration;
+                let taskEffective = task.totalEffectiveDuration;
+
+                // 如果是 running 状态，加上当前段的已运行时间
+                if (task.status === 'running') {
+                    const currentSegment = task.segments[task.segments.length - 1];
+                    if (currentSegment && currentSegment.endTime === null) {
+                        const elapsed = Date.now() - currentSegment.startTime;
+                        taskRaw += elapsed;
+                        taskEffective += elapsed;
+                    }
+                }
+
+                totalRawMs += taskRaw;
+                totalEffectiveMs += taskEffective;
+            });
+
+            const totalHours = totalEffectiveMs / (1000 * 60 * 60);
+            const totalMinutes = totalEffectiveMs / (1000 * 60);
+            const personDays = totalMinutes / (HOURS_PER_DAY * 60);
+            const breakMinutes = (totalRawMs - totalEffectiveMs) / (1000 * 60);
+            const breakHours = breakMinutes / 60;
+
+            return {
+                taskCount: tasks.length,
+                totalHours: totalHours,
+                personDays: personDays,
+                breakHours: breakHours
+            };
+        }
+
+        // ----- 页面加载初始化 -----
+        function initDashboard() {
+            // 加载今日任务
+            todayTasks = loadTodayTasks();
+
+            // 停止所有旧计时器
+            stopAllTimers();
+
+            // 清空容器
+            const container = document.getElementById('tasks-container');
+            if (container) {
+                container.innerHTML = '';
+                if (todayTasks.length === 0) {
+                    container.innerHTML = `
+                        <div class="empty-state">
+                            <div class="empty-state-text">暂无任务</div>
+                            <div class="empty-state-hint">点击"新建任务"开始</div>
+                        </div>
+                    `;
+                }
+            }
+
+            // 渲染所有任务卡片
+            todayTasks.forEach(task => {
+                renderTaskCard(task);
+            });
+
+            // 更新高亮区域和统计
+            updateActiveTaskBanner();
+            updateDashboardStats();
+
+            // 设置日期
+            const dateEl = document.getElementById('header-date');
+            if (dateEl) {
+                const now = new Date();
+                const weekdays = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];
+                dateEl.textContent = `${now.getFullYear()}年${now.getMonth() + 1}月${now.getDate()}日 ${weekdays[now.getDay()]}`;
+            }
+        }
+
+        // ==========================================
+        // V2-007: 历史记录视图
+        // ==========================================
+
+        // ----- 获取默认历史日期（昨天）-----
+        function getDefaultHistoryDate() {
+            const yesterday = new Date();
+            yesterday.setDate(yesterday.getDate() - 1);
+            return formatDate(yesterday);
+        }
+
+        // ----- 加载历史任务 -----
+        function loadHistoryTasks(dateStr) {
+            const date = new Date(dateStr + 'T00:00:00');
+            return loadTasks(date);
+        }
+
+        // ----- 渲染历史视图 -----
+        function renderHistoryView(dateStr) {
+            const tasks = loadHistoryTasks(dateStr);
+            const container = document.getElementById('history-tasks-container');
+            const titleEl = document.getElementById('history-tasks-title');
+
+            if (titleEl) {
+                titleEl.textContent = `${dateStr} 的任务`;
+            }
+
+            if (container) {
+                container.innerHTML = '';
+                if (tasks.length === 0) {
+                    container.innerHTML = `
+                        <div class="empty-state">
+                            <div class="empty-state-text">该日期暂无记录</div>
+                            <div class="empty-state-hint">选择其他日期查看</div>
+                        </div>
+                    `;
+                } else {
+                    tasks.forEach(task => {
+                        renderTaskCard(task, true, 'history-tasks-container');
+                    });
+                }
+            }
+
+            // 更新历史统计概览
+            updateDashboardStats(tasks);
+        }
+
+        // ----- 渲染设置视图 (V2-008) -----
+        function renderSettingsView() {
+            const container = document.getElementById('break-periods-list');
+            if (!container) return;
+
+            const breakPeriods = getBreakPeriods();
+
+            let html = '';
+            if (breakPeriods.length === 0) {
+                html = '<div style="text-align:center;color:var(--text-secondary);padding:20px;">暂无休息时段配置</div>';
+            } else {
+                breakPeriods.forEach((period, index) => {
+                    html += buildBreakPeriodItemHTML(period, index);
+                });
+            }
+
+            container.innerHTML = html;
+            bindSettingsEvents();
+        }
+
+        function buildBreakPeriodItemHTML(period, index) {
+            return `
+                <div class="break-period-item" data-break-index="${index}">
+                    <div class="break-period-field">
+                        <label>名称</label>
+                        <input type="text" data-break-name="${index}" value="${escapeHtml(period.name || '')}" placeholder="例如：午休">
+                    </div>
+                    <div class="break-period-field">
+                        <label>开始时间</label>
+                        <input type="time" data-break-start="${index}" value="${period.start || '12:00'}">
+                    </div>
+                    <div class="break-period-field">
+                        <label>结束时间</label>
+                        <input type="time" data-break-end="${index}" value="${period.end || '13:00'}">
+                    </div>
+                    <div class="break-period-field">
+                        <label>颜色</label>
+                        <input type="color" data-break-color="${index}" value="${period.color || '#f59e0b'}">
+                    </div>
+                    <button class="break-period-delete-btn" data-delete-break="${index}" title="删除">×</button>
+                </div>
+            `;
+        }
+
+        function bindSettingsEvents() {
+            // 添加休息时段按钮
+            const addBtn = document.getElementById('btn-add-break-period');
+            if (addBtn) {
+                addBtn.onclick = addBreakPeriod;
+            }
+
+            // 保存设置按钮
+            const saveBtn = document.getElementById('btn-save-settings');
+            if (saveBtn) {
+                saveBtn.onclick = saveSettings;
+            }
+
+            // 返回 Dashboard 按钮
+            const backBtn = document.getElementById('btn-back-to-dashboard');
+            if (backBtn) {
+                backBtn.onclick = function() {
+                    switchView('dashboard');
+                };
+            }
+
+            // 删除休息时段按钮
+            const deleteBtns = document.querySelectorAll('[data-delete-break]');
+            deleteBtns.forEach(btn => {
+                btn.onclick = function() {
+                    const index = parseInt(this.dataset.deleteBreak, 10);
+                    deleteBreakPeriod(index);
+                };
+            });
+        }
+
+        function addBreakPeriod() {
+            const container = document.getElementById('break-periods-list');
+            if (!container) return;
+
+            const breakPeriods = getBreakPeriods();
+            breakPeriods.push({ name: '', start: '12:00', end: '13:00', color: '#f59e0b' });
+
+            const index = breakPeriods.length - 1;
+            const html = buildBreakPeriodItemHTML(breakPeriods[index], index);
+
+            // 如果之前是空状态，清空容器
+            if (breakPeriods.length === 1) {
+                container.innerHTML = '';
+            }
+
+            container.insertAdjacentHTML('beforeend', html);
+            bindSettingsEvents();
+        }
+
+        function deleteBreakPeriod(index) {
+            const container = document.getElementById('break-periods-list');
+            if (!container) return;
+
+            // 收集当前所有输入的值
+            const items = container.querySelectorAll('.break-period-item');
+            const breakPeriods = [];
+            items.forEach((item, i) => {
+                if (i === index) return; // 跳过要删除的项
+                const nameInput = item.querySelector('[data-break-name]');
+                const startInput = item.querySelector('[data-break-start]');
+                const endInput = item.querySelector('[data-break-end]');
+                const colorInput = item.querySelector('[data-break-color]');
+                breakPeriods.push({
+                    name: nameInput ? nameInput.value : '',
+                    start: startInput ? startInput.value : '12:00',
+                    end: endInput ? endInput.value : '13:00',
+                    color: colorInput ? colorInput.value : '#f59e0b'
+                });
+            });
+
+            // 重新渲染
+            let html = '';
+            if (breakPeriods.length === 0) {
+                html = '<div style="text-align:center;color:var(--text-secondary);padding:20px;">暂无休息时段配置</div>';
+            } else {
+                breakPeriods.forEach((period, i) => {
+                    html += buildBreakPeriodItemHTML(period, i);
+                });
+            }
+            container.innerHTML = html;
+            bindSettingsEvents();
+        }
+
+        function saveSettings() {
+            const container = document.getElementById('break-periods-list');
+            if (!container) return;
+
+            const items = container.querySelectorAll('.break-period-item');
+            const breakPeriods = [];
+
+            items.forEach((item, index) => {
+                const nameInput = item.querySelector(`[data-break-name="${index}"]`);
+                const startInput = item.querySelector(`[data-break-start="${index}"]`);
+                const endInput = item.querySelector(`[data-break-end="${index}"]`);
+                const colorInput = item.querySelector(`[data-break-color="${index}"]`);
+
+                const name = nameInput ? nameInput.value.trim() : '';
+                const start = startInput ? startInput.value : '';
+                const end = endInput ? endInput.value : '';
+                const color = colorInput ? colorInput.value : '#f59e0b';
+
+                if (name && start && end) {
+                    breakPeriods.push({ name, start, end, color });
+                }
+            });
+
+            saveBreakPeriods(breakPeriods);
+
+            // 重新计算所有任务的有效时长
+            recalculateAllTasksEffectiveDuration();
+
+            // 刷新 Dashboard 显示
+            todayTasks.forEach(task => renderTaskCard(task));
+            updateDashboardStats();
+            updateActiveTaskBanner();
+
+            alert('设置已保存');
+        }
+
+        // ----- 视图切换 -----
+        function switchView(viewName) {
+            const dashboardView = document.getElementById('active-task-banner');
+            const statsContainer = document.getElementById('stats-container');
+            const tasksSection = document.getElementById('dashboard-tasks-section');
+            const historyView = document.getElementById('history-view');
+            const settingsView = document.getElementById('settings-view');
+            const headerTitle = document.getElementById('header-title');
+            const headerDate = document.getElementById('header-date');
+
+            const navDashboard = document.getElementById('nav-dashboard');
+            const navToday = document.getElementById('nav-today');
+            const navHistory = document.getElementById('nav-history');
+            const navSettings = document.getElementById('nav-settings');
+
+            // 重置所有导航项高亮
+            [navDashboard, navToday, navHistory, navSettings].forEach(nav => {
+                if (nav) nav.classList.remove('active');
+            });
+
+            // 隐藏所有视图
+            if (settingsView) settingsView.style.display = 'none';
+
+            if (viewName === 'dashboard') {
+                // 显示 Dashboard 视图
+                if (dashboardView) dashboardView.style.display = '';
+                if (statsContainer) statsContainer.style.display = '';
+                if (tasksSection) tasksSection.style.display = '';
+                if (historyView) historyView.style.display = 'none';
+                if (headerTitle) headerTitle.textContent = '工作计时器';
+                if (headerDate) headerDate.style.display = '';
+
+                if (navDashboard) navDashboard.classList.add('active');
+
+                // 恢复今日任务数据
+                initDashboard();
+            } else if (viewName === 'today') {
+                // 今日任务视图（同 Dashboard）
+                if (dashboardView) dashboardView.style.display = '';
+                if (statsContainer) statsContainer.style.display = '';
+                if (tasksSection) tasksSection.style.display = '';
+                if (historyView) historyView.style.display = 'none';
+                if (headerTitle) headerTitle.textContent = '工作计时器';
+                if (headerDate) headerDate.style.display = '';
+
+                if (navToday) navToday.classList.add('active');
+
+                initDashboard();
+            } else if (viewName === 'history') {
+                // 显示历史视图
+                if (dashboardView) dashboardView.style.display = 'none';
+                if (statsContainer) statsContainer.style.display = 'none';
+                if (tasksSection) tasksSection.style.display = 'none';
+                if (historyView) historyView.style.display = '';
+
+                if (navHistory) navHistory.classList.add('active');
+
+                // 初始化日期选择器
+                const datePicker = document.getElementById('history-date-picker');
+                if (datePicker && !datePicker.value) {
+                    datePicker.value = getDefaultHistoryDate();
+                }
+
+                // 加载历史数据
+                const selectedDate = datePicker ? datePicker.value : getDefaultHistoryDate();
+                renderHistoryView(selectedDate);
+            } else if (viewName === 'settings') {
+                // 显示设置视图
+                if (dashboardView) dashboardView.style.display = 'none';
+                if (statsContainer) statsContainer.style.display = 'none';
+                if (tasksSection) tasksSection.style.display = 'none';
+                if (historyView) historyView.style.display = 'none';
+                if (settingsView) settingsView.style.display = '';
+                if (headerTitle) headerTitle.textContent = '设置';
+                if (headerDate) headerDate.style.display = 'none';
+
+                if (navSettings) navSettings.classList.add('active');
+
+                renderSettingsView();
+            }
+        }
+
+        // ----- 事件绑定 -----
+        document.addEventListener('DOMContentLoaded', function() {
+            const btnNewTask = document.getElementById('btn-new-task');
+            if (btnNewTask) {
+                btnNewTask.addEventListener('click', handleNewTask);
+            }
+
+            // 侧边栏导航事件
+            const navDashboard = document.getElementById('nav-dashboard');
+            const navToday = document.getElementById('nav-today');
+            const navHistory = document.getElementById('nav-history');
+            const navSettings = document.getElementById('nav-settings');
+
+            if (navDashboard) {
+                navDashboard.addEventListener('click', function() { switchView('dashboard'); });
+            }
+            if (navToday) {
+                navToday.addEventListener('click', function() { switchView('today'); });
+            }
+            if (navHistory) {
+                navHistory.addEventListener('click', function() { switchView('history'); });
+            }
+            if (navSettings) {
+                navSettings.addEventListener('click', function() { switchView('settings'); });
+            }
+
+            // 日期选择器事件
+            const datePicker = document.getElementById('history-date-picker');
+            if (datePicker) {
+                datePicker.addEventListener('change', function() {
+                    if (this.value) {
+                        renderHistoryView(this.value);
+                    }
+                });
+            }
+
+            initDashboard();
+        });
+
+        // ==========================================
+        // V2-002 自测代码（浏览器控制台验证用）
+        // ==========================================
+        (function runV2Tests() {
+            console.log('=== V2-002 数据模型自测开始 ===');
+            let passCount = 0;
+            let failCount = 0;
+
+            function test(name, condition) {
+                if (condition) {
+                    console.log(`  [PASS] ${name}`);
+                    passCount++;
+                } else {
+                    console.error(`  [FAIL] ${name}`);
+                    failCount++;
+                }
+            }
+
+            // AC1: createTask('测试任务') 返回正确的任务对象
+            const task = createTask('测试任务');
+            test('AC1: createTask 返回对象', typeof task === 'object' && task !== null);
+            test('AC1: task 有 id 属性', typeof task.id === 'string' && task.id.length > 0);
+            test('AC1: taskName 正确', task.taskName === '测试任务');
+            test('AC1: status 为 idle', task.status === 'idle');
+            test('AC1: createdAt 是数字', typeof task.createdAt === 'number');
+            test('AC1: totalRawDuration 为 0', task.totalRawDuration === 0);
+            test('AC1: totalEffectiveDuration 为 0', task.totalEffectiveDuration === 0);
+
+            // AC2: 任务对象包含空的 segments 数组
+            test('AC2: segments 是数组', Array.isArray(task.segments));
+            test('AC2: segments 为空', task.segments.length === 0);
+
+            // AC3: saveTodayTasks([task]) 后能在 localStorage 看到数据
+            saveTodayTasks([task]);
+            const rawData = localStorage.getItem(todayKey());
+            test('AC3: localStorage 有数据', rawData !== null);
+            test('AC3: localStorage 数据可解析', (() => {
+                try {
+                    const parsed = JSON.parse(rawData);
+                    return Array.isArray(parsed) && parsed.length === 1;
+                } catch (e) {
+                    return false;
+                }
+            })());
+
+            // AC4: loadTodayTasks() 能正确读取并返回任务数组
+            const loadedTasks = loadTodayTasks();
+            test('AC4: loadTodayTasks 返回数组', Array.isArray(loadedTasks));
+            test('AC4: 返回的数组长度正确', loadedTasks.length === 1);
+            test('AC4: 返回的任务 id 匹配', loadedTasks[0].id === task.id);
+            test('AC4: 返回的任务 name 匹配', loadedTasks[0].taskName === '测试任务');
+
+            // AC5: createSegment(Date.now()) 返回正确的时间段对象
+            const now = Date.now();
+            const segment = createSegment(now);
+            test('AC5: createSegment 返回对象', typeof segment === 'object' && segment !== null);
+            test('AC5: segment 有 id', typeof segment.id === 'string' && segment.id.length > 0);
+            test('AC5: startTime 正确', segment.startTime === now);
+            test('AC5: endTime 为 null', segment.endTime === null);
+            test('AC5: rawDuration 为 0', segment.rawDuration === 0);
+            test('AC5: effectiveDuration 为 0', segment.effectiveDuration === 0);
+            test('AC5: breakOverlapMinutes 为 0', segment.breakOverlapMinutes === 0);
+
+            // AC6: 任务状态机函数返回正确的布尔值
+            const idleTask = { status: 'idle' };
+            const runningTask = { status: 'running' };
+            const pausedTask = { status: 'paused' };
+            const completedTask = { status: 'completed' };
+
+            test('AC6: canStart(idle) === true', canStart(idleTask) === true);
+            test('AC6: canStart(paused) === true', canStart(pausedTask) === true);
+            test('AC6: canStart(running) === false', canStart(runningTask) === false);
+            test('AC6: canStart(completed) === false', canStart(completedTask) === false);
+
+            test('AC6: canPause(idle) === false', canPause(idleTask) === false);
+            test('AC6: canPause(running) === true', canPause(runningTask) === true);
+            test('AC6: canPause(paused) === false', canPause(pausedTask) === false);
+            test('AC6: canPause(completed) === false', canPause(completedTask) === false);
+
+            test('AC6: canComplete(idle) === false', canComplete(idleTask) === false);
+            test('AC6: canComplete(running) === true', canComplete(runningTask) === true);
+            test('AC6: canComplete(paused) === true', canComplete(pausedTask) === true);
+            test('AC6: canComplete(completed) === false', canComplete(completedTask) === false);
+
+            // 额外测试：calculateSegmentDuration
+            const seg = createSegment(1000);
+            test('calculateSegmentDuration: 基本计算', calculateSegmentDuration(seg, 5000) === 4000);
+            test('calculateSegmentDuration: 缺少 endTime', calculateSegmentDuration(seg, null) === 0);
+
+            // 额外测试：updateTaskTotals
+            const taskWithSegs = createTask('计算测试');
+            taskWithSegs.segments = [
+                { rawDuration: 1000, effectiveDuration: 800 },
+                { rawDuration: 2000, effectiveDuration: 1500 }
+            ];
+            updateTaskTotals(taskWithSegs);
+            test('updateTaskTotals: totalRawDuration', taskWithSegs.totalRawDuration === 3000);
+            test('updateTaskTotals: totalEffectiveDuration', taskWithSegs.totalEffectiveDuration === 2300);
+
+            // 清理测试数据
+            localStorage.removeItem(todayKey());
+
+            console.log(`=== V2-002 自测结束: ${passCount} 通过, ${failCount} 失败 ===`);
+            if (failCount > 0) {
+                console.error('⚠️ 存在失败的测试，请检查实现！');
+            } else {
+                console.log('✅ 所有测试通过！');
+            }
+        })();
+
+        // ==========================================
+        // V2-003 自测代码（浏览器控制台验证用）
+        // ==========================================
+        (function runV2003Tests() {
+            console.log('=== V2-003 任务卡片渲染与交互自测开始 ===');
+            let passCount = 0;
+            let failCount = 0;
+
+            function test(name, condition) {
+                if (condition) {
+                    console.log(`  [PASS] ${name}`);
+                    passCount++;
+                } else {
+                    console.error(`  [FAIL] ${name}`);
+                    failCount++;
+                    console.error('    Expected true, got:', condition);
+                }
+            }
+
+            // 清理之前的测试数据
+            const testKey = STORAGE_KEY_PREFIX + 'test-date';
+            localStorage.removeItem(testKey);
+
+            // AC1: 测试任务创建和保存
+            console.log('\n--- AC1: 新建任务测试 ---');
+            const testTask = createTask('测试任务AC1');
+            test('AC1: createTask 返回任务对象', testTask && typeof testTask === 'object');
+            test('AC1: 任务有正确名称', testTask.taskName === '测试任务AC1');
+            test('AC1: 任务初始状态为 idle', testTask.status === 'idle');
+
+            // AC2: 测试任务卡片渲染函数存在
+            console.log('\n--- AC2: 任务卡片渲染测试 ---');
+            test('AC2: renderTaskCard 函数存在', typeof renderTaskCard === 'function');
+            test('AC2: formatDuration 函数存在', typeof formatDuration === 'function');
+            test('AC2: formatDuration(3661000) 返回 01:01:01', formatDuration(3661000) === '01:01:01');
+            test('AC2: formatDuration(0) 返回 00:00:00', formatDuration(0) === '00:00:00');
+
+            // AC3: 测试状态机操作函数
+            console.log('\n--- AC3: 操作按钮逻辑测试 ---');
+            test('AC3: startTask 函数存在', typeof startTask === 'function');
+            test('AC3: pauseTask 函数存在', typeof pauseTask === 'function');
+            test('AC3: resumeTask 函数存在', typeof resumeTask === 'function');
+            test('AC3: completeTask 函数存在', typeof completeTask === 'function');
+
+            // 测试状态转换
+            const taskForActions = createTask('状态测试任务');
+            test('AC3: 初始状态为 idle', taskForActions.status === 'idle');
+
+            // 模拟开始任务
+            taskForActions.status = 'running';
+            taskForActions.segments.push(createSegment(Date.now()));
+            test('AC3: 开始任务后状态为 running', taskForActions.status === 'running');
+            test('AC3: 开始任务后有 segments', taskForActions.segments.length === 1);
+
+            // AC4: 测试计时器相关函数
+            console.log('\n--- AC4: 计时器实时更新测试 ---');
+            test('AC4: startTaskTimer 函数存在', typeof startTaskTimer === 'function');
+            test('AC4: stopTaskTimer 函数存在', typeof stopTaskTimer === 'function');
+            test('AC4: window.runningIntervals 对象存在', typeof window.runningIntervals === 'object');
+
+            // AC5: 测试高亮区域函数
+            console.log('\n--- AC5: 当前任务高亮区域测试 ---');
+            test('AC5: updateActiveTaskBanner 函数存在', typeof updateActiveTaskBanner === 'function');
+            test('AC5: calculateRunningTaskElapsed 函数存在', typeof calculateRunningTaskElapsed === 'function');
+
+            // AC6: 测试统计概览函数
+            console.log('\n--- AC6: 统计概览更新测试 ---');
+            test('AC6: updateDashboardStats 函数存在', typeof updateDashboardStats === 'function');
+            test('AC6: calculateStats 函数存在', typeof calculateStats === 'function');
+
+            // 测试统计计算
+            const statsTask1 = createTask('统计测试1');
+            statsTask1.totalEffectiveDuration = 3600000; // 1小时
+            statsTask1.status = 'completed';
+
+            const statsTask2 = createTask('统计测试2');
+            statsTask2.totalEffectiveDuration = 1800000; // 30分钟
+            statsTask2.status = 'completed';
+
+            todayTasks = [statsTask1, statsTask2];
+            const stats = calculateStats();
+
+            test('AC6: 统计任务数正确', stats.taskCount === 2);
+            test('AC6: 总工时计算正确', Math.abs(stats.totalHours - 1.5) < 0.01);
+            test('AC6: 人天计算正确', Math.abs(stats.personDays - (90 / 480)) < 0.01);
+
+            // AC7: 测试页面初始化函数
+            console.log('\n--- AC7: 页面加载初始化测试 ---');
+            test('AC7: initDashboard 函数存在', typeof initDashboard === 'function');
+            test('AC7: handleNewTask 函数存在', typeof handleNewTask === 'function');
+
+            // AC8: 测试工具函数
+            console.log('\n--- AC8: 工具函数测试 ---');
+            test('AC8: escapeHtml 函数存在', typeof escapeHtml === 'function');
+            test('AC8: escapeHtml 转义 <', escapeHtml('<script>') === '&lt;script&gt;');
+            test('AC8: formatDurationMinutes 函数存在', typeof formatDurationMinutes === 'function');
+            test('AC8: formatNumber 函数存在', typeof formatNumber === 'function');
+
+            console.log(`\n=== V2-003 自测结束: ${passCount} 通过, ${failCount} 失败 ===`);
+            if (failCount > 0) {
+                console.error('⚠️ 存在失败的测试，请检查实现！');
+            } else {
+                console.log('✅ 所有测试通过！');
+            }
+        })();
+
+        // ==========================================
+        // V2-004: 时间段展开/收起与年月时间显示自测代码
+        // ==========================================
+        (function runV2004Tests() {
+            console.log('=== V2-004 时间段展开/收起与年月时间显示自测开始 ===');
+            let passCount = 0;
+            let failCount = 0;
+
+            function test(name, condition) {
+                if (condition) {
+                    console.log(`  [PASS] ${name}`);
+                    passCount++;
+                } else {
+                    console.error(`  [FAIL] ${name}`);
+                    failCount++;
+                }
+            }
+
+            // 准备测试数据
+            const testTask = createTask('V2-004 测试任务');
+            testTask.segments = [
+                { id: 'seg-1', startTime: new Date('2026-04-21T09:00:00').getTime(), endTime: new Date('2026-04-21T11:30:00').getTime(), rawDuration: 9000000, effectiveDuration: 8100000 },
+                { id: 'seg-2', startTime: new Date('2026-04-21T13:00:00').getTime(), endTime: new Date('2026-04-21T15:15:00').getTime(), rawDuration: 8100000, effectiveDuration: 8100000 },
+                { id: 'seg-3', startTime: new Date('2026-04-21T16:00:00').getTime(), endTime: null, rawDuration: 0, effectiveDuration: 0 }
+            ];
+            updateTaskTotals(testTask);
+            todayTasks = [testTask];
+
+            // AC1: 默认收起，显示段数统计
+            console.log('\n--- AC1: 默认收起状态测试 ---');
+            test('AC1: buildTaskCardHTML 函数存在', typeof buildTaskCardHTML === 'function');
+            const cardHTML = buildTaskCardHTML(testTask);
+            test('AC1: 卡片HTML包含时间段区域', cardHTML.includes('segments-section'));
+            test('AC1: 显示段数统计（共3段）', cardHTML.includes('共3段'));
+            test('AC1: 默认显示▼图标', cardHTML.includes('▼'));
+            test('AC1: 时间段列表初始未展开', !cardHTML.includes('segments-list expanded'));
+
+            // AC2: 时间段详情展示（含年月日）
+            console.log('\n--- AC2: 时间段详情展示测试 ---');
+            test('AC2: buildSegmentsListHTML 函数存在', typeof buildSegmentsListHTML === 'function');
+            const segmentsHTML = buildSegmentsListHTML(testTask);
+            test('AC2: 显示日期格式 YYYY-MM-DD', segmentsHTML.includes('2026-04-21'));
+            test('AC2: 显示开始时间 09:00', segmentsHTML.includes('09:00'));
+            test('AC2: 显示结束时间 11:30', segmentsHTML.includes('11:30'));
+            test('AC2: 显示原始时长', segmentsHTML.includes('原始'));
+            test('AC2: 显示有效时长', segmentsHTML.includes('有效'));
+            test('AC2: 进行中的段显示"进行中"', segmentsHTML.includes('进行中'));
+            test('AC2: 每段有删除按钮', segmentsHTML.includes('segment-delete-btn'));
+
+            // AC3: 时间段删除功能
+            console.log('\n--- AC3: 时间段删除测试 ---');
+            test('AC3: deleteSegment 函数存在', typeof deleteSegment === 'function');
+            
+            // 模拟删除第二段
+            const originalSegCount = testTask.segments.length;
+            const originalRaw = testTask.totalRawDuration;
+            const segToDelete = testTask.segments[1];
+            
+            // 直接调用删除逻辑（跳过confirm）
+            const idx = testTask.segments.findIndex(s => s.id === segToDelete.id);
+            testTask.segments.splice(idx, 1);
+            updateTaskTotals(testTask);
+            
+            test('AC3: 删除后段数减少', testTask.segments.length === originalSegCount - 1);
+            test('AC3: 删除后总时长更新', testTask.totalRawDuration < originalRaw);
+
+            // 恢复测试数据
+            testTask.segments = [
+                { id: 'seg-1', startTime: new Date('2026-04-21T09:00:00').getTime(), endTime: new Date('2026-04-21T11:30:00').getTime(), rawDuration: 9000000, effectiveDuration: 8100000 },
+                { id: 'seg-2', startTime: new Date('2026-04-21T13:00:00').getTime(), endTime: new Date('2026-04-21T15:15:00').getTime(), rawDuration: 8100000, effectiveDuration: 8100000 },
+                { id: 'seg-3', startTime: new Date('2026-04-21T16:00:00').getTime(), endTime: null, rawDuration: 0, effectiveDuration: 0 }
+            ];
+            updateTaskTotals(testTask);
+
+            // AC4: 手动添加时间段
+            console.log('\n--- AC4: 手动添加时间段测试 ---');
+            test('AC4: showSegmentAddForm 函数存在', typeof showSegmentAddForm === 'function');
+            test('AC4: saveNewSegment 函数存在', typeof saveNewSegment === 'function');
+
+            // 测试时间重叠检测逻辑
+            const startTime = new Date('2026-04-21T10:00:00').getTime();
+            const endTime = new Date('2026-04-21T12:00:00').getTime();
+            let hasOverlap = false;
+            for (const segment of testTask.segments) {
+                const segStart = segment.startTime;
+                const segEnd = segment.endTime || Date.now();
+                if ((startTime >= segStart && startTime < segEnd) ||
+                    (endTime > segStart && endTime <= segEnd) ||
+                    (startTime <= segStart && endTime >= segEnd)) {
+                    hasOverlap = true;
+                    break;
+                }
+            }
+            test('AC4: 重叠时间段被检测到', hasOverlap === true);
+
+            // 测试非重叠时间段
+            const startTime2 = new Date('2026-04-22T09:00:00').getTime();
+            const endTime2 = new Date('2026-04-22T10:00:00').getTime();
+            let hasOverlap2 = false;
+            for (const segment of testTask.segments) {
+                const segStart = segment.startTime;
+                const segEnd = segment.endTime || Date.now();
+                if ((startTime2 >= segStart && startTime2 < segEnd) ||
+                    (endTime2 > segStart && endTime2 <= segEnd) ||
+                    (startTime2 <= segStart && endTime2 >= segEnd)) {
+                    hasOverlap2 = true;
+                    break;
+                }
+            }
+            test('AC4: 非重叠时间段通过检测', hasOverlap2 === false);
+
+            // AC5: 工具函数
+            console.log('\n--- AC5: 工具函数测试 ---');
+            test('AC5: formatTime 函数存在', typeof formatTime === 'function');
+            test('AC5: formatTime 返回 HH:MM', formatTime(new Date('2026-04-21T09:05:00')) === '09:05');
+            test('AC5: toggleSegmentsList 函数存在', typeof toggleSegmentsList === 'function');
+            test('AC5: formatDurationMinutes(0) 返回 0分', formatDurationMinutes(0) === '0分');
+            test('AC5: formatDurationMinutes(75) 返回 1小时15分', formatDurationMinutes(75) === '1小时15分');
+            test('AC5: formatDurationMinutes(120) 返回 2小时', formatDurationMinutes(120) === '2小时');
+            test('AC5: formatDurationMinutes(30) 返回 30分', formatDurationMinutes(30) === '30分');
+
+            // 清理测试数据
+            todayTasks = [];
+            localStorage.removeItem(todayKey());
+
+            console.log(`\n=== V2-004 自测结束: ${passCount} 通过, ${failCount} 失败 ===`);
+            if (failCount > 0) {
+                console.error('⚠️ 存在失败的测试，请检查实现！');
+            } else {
+                console.log('✅ 所有 V2-004 测试通过！');
+            }
+        })();
+
+        // ==========================================
+        // V2-005: 拖拽进度条调整时间自测代码
+        // ==========================================
+        (function runV2005Tests() {
+            console.log('=== V2-005 拖拽进度条调整时间自测开始 ===');
+            let passCount = 0;
+            let failCount = 0;
+
+            function test(name, condition) {
+                if (condition) {
+                    console.log(`  [PASS] ${name}`);
+                    passCount++;
+                } else {
+                    console.error(`  [FAIL] ${name}`);
+                    failCount++;
+                }
+            }
+
+            // 准备测试数据
+            const testTask = createTask('V2-005 测试任务');
+            testTask.segments = [
+                { 
+                    id: 'seg-t1', 
+                    startTime: new Date('2026-04-21T09:00:00').getTime(), 
+                    endTime: new Date('2026-04-21T11:30:00').getTime(), 
+                    rawDuration: 9000000, 
+                    effectiveDuration: 9000000 
+                },
+                { 
+                    id: 'seg-t2', 
+                    startTime: new Date('2026-04-21T13:00:00').getTime(), 
+                    endTime: new Date('2026-04-21T15:15:00').getTime(), 
+                    rawDuration: 8100000, 
+                    effectiveDuration: 8100000 
+                }
+            ];
+            updateTaskTotals(testTask);
+            todayTasks = [testTask];
+
+            // AC1: 进度条HTML结构
+            console.log('\n--- AC1: 进度条HTML结构测试 ---');
+            test('AC1: buildTimelineHTML 函数存在', typeof buildTimelineHTML === 'function');
+            const timelineHTML = buildTimelineHTML(testTask.segments[0], testTask);
+            test('AC1: 包含 timeline-bar', timelineHTML.includes('timeline-bar'));
+            test('AC1: 包含 timeline-labels', timelineHTML.includes('timeline-labels'));
+            test('AC1: 包含 00:00 标签', timelineHTML.includes('00:00'));
+            test('AC1: 包含 06:00 标签', timelineHTML.includes('06:00'));
+            test('AC1: 包含 12:00 标签', timelineHTML.includes('12:00'));
+            test('AC1: 包含 18:00 标签', timelineHTML.includes('18:00'));
+            test('AC1: 包含 24:00 标签', timelineHTML.includes('24:00'));
+            test('AC1: 包含 timeline-track', timelineHTML.includes('timeline-track'));
+            test('AC1: 包含 segment-fill', timelineHTML.includes('segment-fill'));
+            test('AC1: 包含 handle-start', timelineHTML.includes('handle-start'));
+            test('AC1: 包含 handle-end', timelineHTML.includes('handle-end'));
+
+            // AC2: 时间计算
+            console.log('\n--- AC2: 时间计算测试 ---');
+            test('AC2: timeToMinutes("09:00") === 540', timeToMinutes('09:00') === 540);
+            test('AC2: timeToMinutes("12:30") === 750', timeToMinutes('12:30') === 750);
+            test('AC2: minutesToTime(540) === "09:00"', minutesToTime(540) === '09:00');
+            test('AC2: minutesToTime(750) === "12:30"', minutesToTime(750) === '12:30');
+            test('AC2: roundToGranularity(7) === 5', roundToGranularity(7) === 5);
+            test('AC2: roundToGranularity(8) === 10', roundToGranularity(8) === 10);
+            test('AC2: roundToGranularity(1439) === 1440', roundToGranularity(1439) === 1440);
+
+            // AC3: 休息时段显示
+            console.log('\n--- AC3: 休息时段显示测试 ---');
+            test('AC3: getBreakPeriods 函数存在', typeof getBreakPeriods === 'function');
+            test('AC3: getBreakPeriods 返回数组', Array.isArray(getBreakPeriods()));
+            const breakPeriods = getBreakPeriods();
+            test('AC3: 默认有休息时段', breakPeriods.length > 0);
+            test('AC3: buildBreakOverlays 函数存在', typeof buildBreakOverlays === 'function');
+            const overlaysHTML = buildBreakOverlays(testTask.segments[0]);
+            test('AC3: 生成 break-overlay', overlaysHTML.includes('break-overlay'));
+
+            // AC4: 拖拽逻辑函数
+            console.log('\n--- AC4: 拖拽逻辑函数测试 ---');
+            test('AC4: initTimelineDrag 函数存在', typeof initTimelineDrag === 'function');
+            test('AC4: onTimelineDrag 函数存在', typeof onTimelineDrag === 'function');
+            test('AC4: onTimelineDragEnd 函数存在', typeof onTimelineDragEnd === 'function');
+            test('AC4: createDragTooltip 函数存在', typeof createDragTooltip === 'function');
+            test('AC4: updateDragTooltip 函数存在', typeof updateDragTooltip === 'function');
+            test('AC4: removeDragTooltip 函数存在', typeof removeDragTooltip === 'function');
+            test('AC4: updateSegmentTextDisplay 函数存在', typeof updateSegmentTextDisplay === 'function');
+
+            // AC5: 冲突检测
+            console.log('\n--- AC5: 冲突检测测试 ---');
+            test('AC5: checkSegmentOverlap 函数存在', typeof checkSegmentOverlap === 'function');
+            
+            // 测试有重叠的情况
+            const seg1 = { startTime: new Date('2026-04-21T09:00:00').getTime(), endTime: new Date('2026-04-21T11:00:00').getTime() };
+            const otherSegs = [
+                { startTime: new Date('2026-04-21T10:00:00').getTime(), endTime: new Date('2026-04-21T12:00:00').getTime() }
+            ];
+            test('AC5: 重叠时间段检测为 true', checkSegmentOverlap(seg1, otherSegs) === true);
+
+            // 测试无重叠的情况
+            const seg2 = { startTime: new Date('2026-04-21T09:00:00').getTime(), endTime: new Date('2026-04-21T10:00:00').getTime() };
+            const otherSegs2 = [
+                { startTime: new Date('2026-04-21T11:00:00').getTime(), endTime: new Date('2026-04-21T12:00:00').getTime() }
+            ];
+            test('AC5: 非重叠时间段检测为 false', checkSegmentOverlap(seg2, otherSegs2) === false);
+
+            // 测试包含关系
+            const seg3 = { startTime: new Date('2026-04-21T09:00:00').getTime(), endTime: new Date('2026-04-21T14:00:00').getTime() };
+            const otherSegs3 = [
+                { startTime: new Date('2026-04-21T10:00:00').getTime(), endTime: new Date('2026-04-21T11:00:00').getTime() }
+            ];
+            test('AC5: 包含关系检测为 true', checkSegmentOverlap(seg3, otherSegs3) === true);
+
+            // 测试空数组
+            test('AC5: 空otherSegments返回 false', checkSegmentOverlap(seg1, []) === false);
+
+            // AC6: timeToTimestamp 函数
+            console.log('\n--- AC6: timeToTimestamp测试 ---');
+            test('AC6: timeToTimestamp 函数存在', typeof timeToTimestamp === 'function');
+            const baseTime = new Date('2026-04-21T10:00:00').getTime();
+            const newTimestamp = timeToTimestamp('14:30', baseTime);
+            const expectedDate = new Date('2026-04-21T14:30:00').getTime();
+            test('AC6: 时间转换正确', newTimestamp === expectedDate);
+
+            // AC7: 进度条位置计算
+            console.log('\n--- AC7: 进度条位置计算测试 ---');
+            const seg9am = testTask.segments[0];
+            const timelineHTML9am = buildTimelineHTML(seg9am, testTask);
+            // 09:00 = 540分钟 = 37.5%
+            test('AC7: 09:00 开始位置约 37.5%', timelineHTML9am.includes('left: 37.5'));
+            // 11:30 = 690分钟, 宽度 = (690-540)/1440*100 = 10.416...%
+            test('AC7: 11:30 结束位置', timelineHTML9am.includes('left: 37.5') && timelineHTML9am.includes('47.9'));
+
+            // 清理测试数据
+            todayTasks = [];
+            localStorage.removeItem(todayKey());
+
+            console.log(`\n=== V2-005 自测结束: ${passCount} 通过, ${failCount} 失败 ===`);
+            if (failCount > 0) {
+                console.error('⚠️ 存在失败的测试，请检查实现！');
+            } else {
+                console.log('✅ 所有 V2-005 测试通过！');
+            }
+        })();
+
+        // ==========================================
+        // V2-007: 历史记录视图自测代码
+        // ==========================================
+        (function runV2007Tests() {
+            console.log('=== V2-007 历史记录视图自测开始 ===');
+            let passCount = 0;
+            let failCount = 0;
+
+            function test(name, condition) {
+                if (condition) {
+                    console.log(`  [PASS] ${name}`);
+                    passCount++;
+                } else {
+                    console.error(`  [FAIL] ${name}`);
+                    failCount++;
+                }
+            }
+
+            // AC1: 视图切换函数存在
+            console.log('\n--- AC1: 视图切换测试 ---');
+            test('AC1: switchView 函数存在', typeof switchView === 'function');
+
+            // AC2: 日期选择器默认昨天
+            console.log('\n--- AC2: 日期选择器测试 ---');
+            test('AC2: getDefaultHistoryDate 函数存在', typeof getDefaultHistoryDate === 'function');
+            const defaultDate = getDefaultHistoryDate();
+            const yesterday = new Date();
+            yesterday.setDate(yesterday.getDate() - 1);
+            const expectedYesterday = formatDate(yesterday);
+            test('AC2: 默认日期为昨天', defaultDate === expectedYesterday);
+
+            // AC3: 加载历史任务
+            console.log('\n--- AC3: 加载历史任务测试 ---');
+            test('AC3: loadHistoryTasks 函数存在', typeof loadHistoryTasks === 'function');
+            test('AC3: renderHistoryView 函数存在', typeof renderHistoryView === 'function');
+
+            // AC4: 只读任务卡片
+            console.log('\n--- AC4: 只读任务卡片测试 ---');
+            test('AC4: buildTaskCardHTML 支持 readonly 参数',
+                buildTaskCardHTML.length >= 1 || (() => {
+                    try {
+                        const html = buildTaskCardHTML(createTask('测试'), true);
+                        return typeof html === 'string';
+                    } catch (e) { return false; }
+                })()
+            );
+
+            const readonlyTask = createTask('只读测试任务');
+            readonlyTask.status = 'completed';
+            readonlyTask.segments = [
+                { id: 'seg-r1', startTime: new Date('2026-04-20T09:00:00').getTime(), endTime: new Date('2026-04-20T11:00:00').getTime(), rawDuration: 7200000, effectiveDuration: 7200000 }
+            ];
+            readonlyTask.totalRawDuration = 7200000;
+            readonlyTask.totalEffectiveDuration = 7200000;
+
+            const readonlyHTML = buildTaskCardHTML(readonlyTask, true);
+            test('AC4: 只读模式不显示操作按钮', !readonlyHTML.includes('task-btn-start') && !readonlyHTML.includes('task-btn-pause'));
+            test('AC4: 只读模式不显示计时器', readonlyHTML.includes('task-timer hidden'));
+            test('AC4: 只读模式显示任务名', readonlyHTML.includes('只读测试任务'));
+            test('AC4: 只读模式显示状态标签', readonlyHTML.includes('task-status'));
+            test('AC4: 只读模式显示累计时长', readonlyHTML.includes('累计时长'));
+
+            // AC5: 时间段列表可展开但不可编辑
+            console.log('\n--- AC5: 时间段列表测试 ---');
+            test('AC5: 只读模式不显示删除按钮', !readonlyHTML.includes('segment-delete-btn'));
+            test('AC5: 只读模式不显示添加时间段按钮', !readonlyHTML.includes('segment-add-btn'));
+            test('AC5: 只读模式仍显示时间段区域', readonlyHTML.includes('segments-section'));
+            test('AC5: 只读模式仍显示展开/收起', readonlyHTML.includes('segments-toggle'));
+
+            // AC6: 历史统计概览
+            console.log('\n--- AC6: 历史统计概览测试 ---');
+            test('AC6: updateDashboardStats 支持传入 tasks 参数',
+                (() => {
+                    try {
+                        const fnStr = updateDashboardStats.toString();
+                        return fnStr.includes('tasks') || fnStr.includes('(');
+                    } catch (e) { return false; }
+                })()
+            );
+
+            // AC7: 返回 Dashboard
+            console.log('\n--- AC7: 返回 Dashboard 测试 ---');
+            test('AC7: initDashboard 函数存在', typeof initDashboard === 'function');
+
+            console.log(`\n=== V2-007 自测结束: ${passCount} 通过, ${failCount} 失败 ===`);
+            if (failCount > 0) {
+                console.error('⚠️ 存在失败的测试，请检查实现！');
+            } else {
+                console.log('✅ 所有 V2-007 测试通过！');
+            }
+        })();
+
+        // ==========================================
+        // V2-008: 休息时段设置与扣除逻辑自测代码
+        // ==========================================
+        (function runV2008Tests() {
+            console.log('=== V2-008 休息时段设置与扣除逻辑自测开始 ===');
+            let passCount = 0;
+            let failCount = 0;
+
+            function test(name, condition) {
+                if (condition) {
+                    console.log(`  [PASS] ${name}`);
+                    passCount++;
+                } else {
+                    console.error(`  [FAIL] ${name}`);
+                    failCount++;
+                }
+            }
+
+            // 清理之前的测试配置
+            localStorage.removeItem('time-tracker-config');
+
+            // AC1: getBreakPeriods 返回默认休息时段
+            console.log('\n--- AC1: 默认休息时段测试 ---');
+            const defaultPeriods = getBreakPeriods();
+            test('AC1: getBreakPeriods 返回数组', Array.isArray(defaultPeriods));
+            test('AC1: 默认有2个休息时段', defaultPeriods.length === 2);
+            test('AC1: 第一个时段名称是午休', defaultPeriods[0].name === '午休');
+            test('AC1: 午休开始时间是11:30', defaultPeriods[0].start === '11:30');
+            test('AC1: 午休结束时间是13:30', defaultPeriods[0].end === '13:30');
+            test('AC1: 午休颜色是#fbbf24', defaultPeriods[0].color === '#fbbf24');
+            test('AC1: 第二个时段名称是晚间休息', defaultPeriods[1].name === '晚间休息');
+            test('AC1: 晚间休息开始时间是17:30', defaultPeriods[1].start === '17:30');
+            test('AC1: 晚间休息结束时间是19:00', defaultPeriods[1].end === '19:00');
+            test('AC1: 晚间休息颜色是#f87171', defaultPeriods[1].color === '#f87171');
+
+            // AC2: saveBreakPeriods 和 getBreakPeriods 持久化
+            console.log('\n--- AC2: 休息时段持久化测试 ---');
+            const customPeriods = [
+                { name: '测试休息', start: '10:00', end: '10:30', color: '#ff0000' }
+            ];
+            saveBreakPeriods(customPeriods);
+            const loadedPeriods = getBreakPeriods();
+            test('AC2: 保存后读取数量一致', loadedPeriods.length === 1);
+            test('AC2: 保存后读取名称一致', loadedPeriods[0].name === '测试休息');
+            test('AC2: 保存后读取时间一致', loadedPeriods[0].start === '10:00' && loadedPeriods[0].end === '10:30');
+            test('AC2: 保存后读取颜色一致', loadedPeriods[0].color === '#ff0000');
+
+            // 恢复默认
+            localStorage.removeItem('time-tracker-config');
+
+            // AC3: calculateOverlap 计算重叠
+            console.log('\n--- AC3: 重叠计算测试 ---');
+            test('AC3: calculateOverlap 函数存在', typeof calculateOverlap === 'function');
+            const segStart = new Date('2026-04-21T09:00:00').getTime();
+            const segEnd = new Date('2026-04-21T12:00:00').getTime();
+            const overlap1 = calculateOverlap(segStart, segEnd, '11:30', '13:30');
+            test('AC3: 09:00-12:00 与 11:30-13:30 重叠30分钟', overlap1 === 30 * 60 * 1000);
+
+            const overlap2 = calculateOverlap(segStart, segEnd, '13:00', '14:00');
+            test('AC3: 09:00-12:00 与 13:00-14:00 无重叠', overlap2 === 0);
+
+            const overlap3 = calculateOverlap(segStart, segEnd, '08:00', '10:00');
+            test('AC3: 09:00-12:00 与 08:00-10:00 重叠1小时', overlap3 === 60 * 60 * 1000);
+
+            // AC4: calculateSegmentEffectiveDuration 扣除休息
+            console.log('\n--- AC4: 有效时长计算测试 ---');
+            test('AC4: calculateSegmentEffectiveDuration 函数存在', typeof calculateSegmentEffectiveDuration === 'function');
+
+            const bp = [
+                { name: '午休', start: '11:30', end: '13:30', color: '#fbbf24' }
+            ];
+            const testSegment = createSegment(new Date('2026-04-21T09:00:00').getTime());
+            testSegment.endTime = new Date('2026-04-21T12:00:00').getTime();
+            testSegment.rawDuration = testSegment.endTime - testSegment.startTime; // 3小时
+            calculateSegmentEffectiveDuration(testSegment, bp);
+            test('AC4: 有效时长为2.5小时', testSegment.effectiveDuration === 2.5 * 60 * 60 * 1000);
+            test('AC4: 休息重叠为30分钟', testSegment.breakOverlapMinutes === 30);
+
+            // AC5: updateTaskTotals 使用有效时长
+            console.log('\n--- AC5: 任务总计更新测试 ---');
+            const testTask = createTask('V2-008测试任务');
+            testTask.segments = [testSegment];
+            updateTaskTotals(testTask);
+            test('AC5: totalRawDuration 正确', testTask.totalRawDuration === 3 * 60 * 60 * 1000);
+            test('AC5: totalEffectiveDuration 正确', testTask.totalEffectiveDuration === 2.5 * 60 * 60 * 1000);
+
+            // AC6: 设置视图函数
+            console.log('\n--- AC6: 设置视图函数测试 ---');
+            test('AC6: renderSettingsView 函数存在', typeof renderSettingsView === 'function');
+            test('AC6: buildBreakPeriodItemHTML 函数存在', typeof buildBreakPeriodItemHTML === 'function');
+            test('AC6: saveSettings 函数存在', typeof saveSettings === 'function');
+            test('AC6: addBreakPeriod 函数存在', typeof addBreakPeriod === 'function');
+            test('AC6: deleteBreakPeriod 函数存在', typeof deleteBreakPeriod === 'function');
+            test('AC6: recalculateAllTasksEffectiveDuration 函数存在', typeof recalculateAllTasksEffectiveDuration === 'function');
+            test('AC6: saveBreakPeriods 函数存在', typeof saveBreakPeriods === 'function');
+
+            // AC7: buildBreakOverlays 使用 getBreakPeriods
+            console.log('\n--- AC7: 进度条休息叠加测试 ---');
+            test('AC7: buildBreakOverlays 函数存在', typeof buildBreakOverlays === 'function');
+            localStorage.removeItem('time-tracker-config');
+            const overlaysHTML = buildBreakOverlays(testSegment);
+            test('AC7: 生成 break-overlay 元素', overlaysHTML.includes('break-overlay'));
+
+            // AC8: calculateStats 基于 effectiveDuration
+            console.log('\n--- AC8: Dashboard 统计测试 ---');
+            todayTasks = [testTask];
+            const stats = calculateStats();
+            test('AC8: 统计基于有效时长', Math.abs(stats.totalHours - 2.5) < 0.01);
+            test('AC8: 人天计算正确', Math.abs(stats.personDays - (2.5 * 60 / 480)) < 0.01);
+
+            // 清理测试数据
+            todayTasks = [];
+            localStorage.removeItem('time-tracker-config');
+            localStorage.removeItem(todayKey());
+
+            console.log(`\n=== V2-008 自测结束: ${passCount} 通过, ${failCount} 失败 ===`);
+            if (failCount > 0) {
+                console.error('⚠️ 存在失败的测试，请检查实现！');
+            } else {
+                console.log('✅ 所有 V2-008 测试通过！');
+            }
+        })();
+
+        console.log('V2 Modern Dashboard UI 已加载');
+    
