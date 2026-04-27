@@ -1,0 +1,8 @@
+# 统一换行符为 LF（Line Feed）
+# 解决 Windows 下 Git 同步时出现的 LF/CRLF 混合警告
+# 配置说明：
+#   - text=auto：Git 自动识别文本文件
+#   - eol=lf：强制使用 LF 换行符，确保跨平台一致性
+# 适用场景：团队成员使用不同操作系统（Windows/Mac/Linux）协作开发
+# 生效方式：已执行 git add --renormalize . 规范化现有文件
+* text=auto eol=lf
